@@ -6,25 +6,22 @@ components needed to support it
 
 import math
 import random
+import numpy as np 
 
-class Node:
+class MCTS(object): 
 
-    '''
-        Declaration of a tree node. Each node has some internal state, a list of children and a parent. 
-        We also keep track of the number of visits made to each node and number of wins after having 
-        visited said node. 
-    
-    '''
-    
-    def __init__(self, state, parent=None):
-        self.state = state
-        self.parent = parent
-        self.children = []
-        self.wins = 0
-        self.visits = 0
 
-    
-    def select_child(self, c=1.4):
+    def __init__(self, model, exploration_factor) -> None:
+        
+        self.num_visits = {}
+        self.total_value = {}
+        self.mean_value = {}
+        self.probabilities_prior = {}
+        self.nn = model 
+
+        self.exploration_factor = exploration_factor
+
+    def select_action(self, c=1.4):
         '''
         The Upper Confidence bound algorithm for Trees (UCT) outputs the desirability of visiting a certain node. 
         It is calculated taking into account the predicted value of that node as well as the number of times that node 
@@ -34,8 +31,6 @@ class Node:
 
         '''
 
-        if not self.children:
-            return None
         
         unvisited_children = [child for child in self.children if child.visits == 0]
         
@@ -45,7 +40,6 @@ class Node:
         
         # Otherwise, choose child with the highest UCT value
         return max(self.children, key=lambda child: child.wins / child.visits + c * math.sqrt(2 * math.log(self.visits) / child.visits))
-
     
     def expand(self):
         '''
@@ -55,6 +49,11 @@ class Node:
         for action in self.state.possible_actions():
             next_state = self.state.step(action)
             self.children.append(Node(next_state, parent=self))
+
+    def simulate(self, root): 
+        '''
+        Once we reach an unvisited leaf, we simulate a traversal from it to a terminal state 
+        '''
 
     def backpropagate(self, result):
         '''
@@ -66,48 +65,35 @@ class Node:
             self.parent.backpropagate(1 - result)
 
 
-class MCTS(object): 
+    def search(self, root_state, num_iterations):
+        #set root node to a node with the specified root state. Presumably, this will be the starting game board. 
+        root = Node(root_state)
 
-
-    def __init__(self, model) -> None:
+        for _ in range(num_iterations):
+            node = root
+            state = root_state
         
-        self.num_visits = {}
-        self.total_value = {}
-        self.mean_value = {}
-        self.probabilities_prior = {}
-        self.nn = model 
-
-
-
-def mcts(root_state, num_iterations):
-    #set root node to a node with the specified root state. Presumably, this will be the starting game board. 
-    root = Node(root_state)
-
-    for _ in range(num_iterations):
-        node = root
-        state = root_state
-    
-        # The purpose of this loop is to get us from our current node to a terminal node or a leaf node 
-        # so that we can either end the game or continue to expand 
-        while node.children and not state.is_terminal():
-            node = node.select_child()
-            state = node.state
-
-        # Expand if the reason for the above exit was not termination 
-        if not state.is_terminal():
-            node.expand()
-            if node.children:
-                node = node.children[0]
+            # The purpose of this loop is to get us from our current node to a terminal node or a leaf node 
+            # so that we can either end the game or continue to expand 
+            while node.children and not state.is_terminal():
+                node = node.select_child()
                 state = node.state
 
-        #simulation phase
-        while not state.is_terminal():
-            action = random.choice(state.possible_actions())
-            state = state.step(action)
+            # Expand if the reason for the above exit was not termination 
+            if not state.is_terminal():
+                node.expand()
+                if node.children:
+                    node = node.children[0]
+                    state = node.state
+
+            #simulation phase
+            while not state.is_terminal():
+                action = random.choice(state.possible_actions())
+                state = state.step(action)
 
 
-        #backprop
-        winner = state.get_winner()
-        node.backpropagate(winner)
+            #backprop
+            winner = state.get_winner()
+            node.backpropagate(winner)
 
-    return max(root.children, key=lambda child: child.visits).state.board
+        return max(root.children, key=lambda child: child.visits).state.board
