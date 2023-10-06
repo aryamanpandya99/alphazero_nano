@@ -7,17 +7,24 @@ components needed to support it
 import math
 import random
 import numpy as np 
+import torch 
 
 class MCTS(object): 
 
 
     def __init__(self, model, exploration_factor) -> None:
         
-        self.num_visits_s_a = {}
+        
         self.total_value_s_a = {}
         self.mean_value_s_a = {}
+        
         self.policies_s = {}
+        
+        self.num_visits_s_a = {}
         self.num_visits_s = {}
+
+        self.terminal_states = {}
+
         self.nn = model 
 
         self.exploration_factor = exploration_factor
@@ -26,18 +33,23 @@ class MCTS(object):
 
         policies, value = self.nn(state)
 
-        for idx, policy_value in enumerate(policies):
-            if idx not in possible_actions:
-                policies[idx] = 0
+        mask = torch.zeros_like(policies, dtype=torch.float32, device=policies.device)
+        mask[possible_actions] = 1
+        policies = policies * mask
 
-        self.policies_s[state] = policies
+        policies_np = policies.cpu().detach().numpy()
+
+        self.policies_s[state] = policies_np
+
+        # Create an array for num_visits_s_a values
+        num_visits_s_a_array = np.array([self.num_visits_s_a[(state, action)] for action in range(self.game._get_action_space())])
 
         # U (s, a) = C(s)P (s, a) N (s)/(1 + N (s, a))
-        
+        uct_values = c * self.policies_s[state] * (np.sqrt(self.num_visits_s[state]) / (1 + num_visits_s_a_array))
 
-        return []
+        return uct_values
 
-    def select_action(self, state: str) -> int:
+    def select_action(self, state: str, possible_actions: list) -> int:
         '''
         The Upper Confidence bound algorithm for Trees (UCT) outputs the desirability of visiting a certain node. 
         It is calculated taking into account the predicted value of that node as well as the number of times that node 
@@ -46,8 +58,6 @@ class MCTS(object):
         This function returns the node's child with the highest UCT value. 
 
         '''
-
-        possible_actions = self.game.possible_actions(state)
         unexplored_actions = [action for action in possible_actions if self.num_visits_s_a[(state, action)]==0]
         
         #If there's more than one unvisited child, sample one to visit randomly. 
@@ -56,7 +66,8 @@ class MCTS(object):
         
         # Otherwise, choose child with the highest UCT value
         action_UCT = self.UCT(state, possible_actions)
-        return max(self.children, key=lambda child: child.wins / child.visits + c * math.sqrt(2 * math.log(self.visits) / child.visits))
+        
+        return np.max(action_UCT)
     
     def expand(self) -> None:
         '''
@@ -84,20 +95,28 @@ class MCTS(object):
 
     def search(self, root_state, num_iterations):
         #set root node to a node with the specified root state. Presumably, this will be the starting game board. 
-        root = Node(root_state)
 
         for _ in range(num_iterations):
-            node = root
             state = root_state
-        
+
             # The purpose of this loop is to get us from our current node to a terminal node or a leaf node 
             # so that we can either end the game or continue to expand 
-            while node.children and not state.is_terminal():
-                node = node.select_child()
-                state = node.state
+            while not self.game.is_terminal(state):
+                
+                possible_actions = self.game.possible_actions(state)
+
+                if len(possible_actions) > 0: 
+                    action = self.select_action(state=state, possible_actions=possible_actions)
+                    next_state = self.game.step(action)
+                    state = next_state 
+                
+                else: 
+                    print(f"Terminal state detected: no possible actions from state {state}")
+                    break
+                
 
             # Expand if the reason for the above exit was not termination 
-            if not state.is_terminal():
+            if not self.game.is_terminal(state):
                 node.expand()
                 if node.children:
                     node = node.children[0]
