@@ -66,6 +66,19 @@ class Node:
             self.parent.backpropagate(1 - result)
 
 
+class MCTS(object): 
+
+
+    def __init__(self, model) -> None:
+        
+        self.num_visits = {}
+        self.total_value = {}
+        self.mean_value = {}
+        self.probabilities_prior = {}
+        self.nn = model 
+
+
+
 def mcts(root_state, num_iterations):
     #set root node to a node with the specified root state. Presumably, this will be the starting game board. 
     root = Node(root_state)
