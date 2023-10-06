@@ -8,6 +8,7 @@ import math
 import random
 import numpy as np 
 import torch 
+import logging 
 
 class MCTS(object): 
 
@@ -68,33 +69,35 @@ class MCTS(object):
         action_UCT = self.UCT(state, possible_actions)
         
         return np.max(action_UCT)
-    
-    def expand(self) -> None:
-        '''
-        This function takes all possible actions, and then adds the output state (next_state) of the given state-action pair 
-        to the list of children for our current state node. 
-        '''
-        for action in self.state.possible_actions():
-            next_state = self.state.step(action)
-            self.children.append(Node(next_state, parent=self))
 
     def simulate(self, root): 
         '''
         Once we reach an unvisited leaf, we simulate a traversal from it to a terminal state 
         '''
 
-    def backpropagate(self, result):
+    def backpropagate(self, result, traversed_states):
         '''
         Update the current node and propagate back to the root.
         '''
-        self.visits += 1
-        self.wins += result
-        if self.parent:
-            self.parent.backpropagate(1 - result)
+        for state, action in reversed(traversed_states):
+            
+            self.num_visits_s[state] += 1
+            self.num_visits_s_a[(state, action)] += 1
+            self.total_value_s_a[(state, action)] += result
+            self.mean_value_s_a[(state, action)] = self.total_value_s_a[(state, action)] / self.num_visits_s_a[(state, action)]
 
-
+    @torch.no_grad()
     def search(self, root_state, num_iterations):
-        #set root node to a node with the specified root state. Presumably, this will be the starting game board. 
+        '''
+        
+        
+        What's left to do from a skeletal implementation perspective: 
+        1. Update probabilities_s when visiting a new leaf state 
+        2. figure out what to do with predicted value..? 
+        3. Initialize pairs to 0 
+    
+        
+        '''
 
         for _ in range(num_iterations):
             state = root_state
@@ -102,6 +105,9 @@ class MCTS(object):
             # The purpose of this loop is to get us from our current node to a terminal node or a leaf node 
             # so that we can either end the game or continue to expand 
             while not self.game.is_terminal(state):
+
+                if self.num_visits_s.get(state, 0) == 0:
+                    break
                 
                 possible_actions = self.game.possible_actions(state)
 
@@ -109,27 +115,28 @@ class MCTS(object):
                     action = self.select_action(state=state, possible_actions=possible_actions)
                     next_state = self.game.step(action)
                     state = next_state 
-                
+
                 else: 
-                    print(f"Terminal state detected: no possible actions from state {state}")
+                    logging.info(f"Terminal state detected: no possible actions from state {state}")
                     break
                 
 
-            # Expand if the reason for the above exit was not termination 
-            if not self.game.is_terminal(state):
-                node.expand()
-                if node.children:
-                    node = node.children[0]
-                    state = node.state
-
             #simulation phase
-            while not state.is_terminal():
-                action = random.choice(state.possible_actions())
-                state = state.step(action)
+            traversal_history = []
+            while not self.game.is_terminal(state):
+                
+                possible_actions = self.game.possible_actions(state)
+
+                action = random.choice(possible_actions())
+                next_state = self.game.step(action)
+                
+                state = next_state
+            
+            reward = self.game.reward(state)
+            self.backpropagate(reward, traversed_states=traversal_history)
+
+                
 
 
-            #backprop
-            winner = state.get_winner()
-            node.backpropagate(winner)
 
-        return max(root.children, key=lambda child: child.visits).state.board
+        return 
