@@ -10,6 +10,24 @@ import numpy as np
 import torch 
 import logging 
 
+
+class Node(object): 
+    def __init__(self, state, parent) -> None:
+        
+        self.state = state
+        self.terminal = False
+        self.children = []
+        self.parent = parent
+        
+        self.total_value_s_a = 0
+        self.mean_value_s_a = 0 
+        self.prior_probabilities = []
+        self.num_visits_s_a = 0
+        self.num_visits_s = 0 
+        
+
+        
+
 class MCTS(object): 
 
 
