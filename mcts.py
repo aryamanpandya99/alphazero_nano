@@ -13,15 +13,31 @@ class MCTS(object):
 
     def __init__(self, model, exploration_factor) -> None:
         
-        self.num_visits = {}
-        self.total_value = {}
-        self.mean_value = {}
-        self.probabilities_prior = {}
+        self.num_visits_s_a = {}
+        self.total_value_s_a = {}
+        self.mean_value_s_a = {}
+        self.policies_s = {}
+        self.num_visits_s = {}
         self.nn = model 
 
         self.exploration_factor = exploration_factor
 
-    def select_action(self, c=1.4):
+    def UCT(self, state: str, possible_actions: list, c: float) -> list: 
+
+        policies, value = self.nn(state)
+
+        for idx, policy_value in enumerate(policies):
+            if idx not in possible_actions:
+                policies[idx] = 0
+
+        self.policies_s[state] = policies
+
+        # U (s, a) = C(s)P (s, a) N (s)/(1 + N (s, a))
+        
+
+        return []
+
+    def select_action(self, state: str) -> int:
         '''
         The Upper Confidence bound algorithm for Trees (UCT) outputs the desirability of visiting a certain node. 
         It is calculated taking into account the predicted value of that node as well as the number of times that node 
@@ -31,17 +47,18 @@ class MCTS(object):
 
         '''
 
-        
-        unvisited_children = [child for child in self.children if child.visits == 0]
+        possible_actions = self.game.possible_actions(state)
+        unexplored_actions = [action for action in possible_actions if self.num_visits_s_a[(state, action)]==0]
         
         #If there's more than one unvisited child, sample one to visit randomly. 
-        if unvisited_children:
-            return random.choice(unvisited_children)
+        if unexplored_actions:
+            return random.choice(unexplored_actions)
         
         # Otherwise, choose child with the highest UCT value
+        action_UCT = self.UCT(state, possible_actions)
         return max(self.children, key=lambda child: child.wins / child.visits + c * math.sqrt(2 * math.log(self.visits) / child.visits))
     
-    def expand(self):
+    def expand(self) -> None:
         '''
         This function takes all possible actions, and then adds the output state (next_state) of the given state-action pair 
         to the list of children for our current state node. 
