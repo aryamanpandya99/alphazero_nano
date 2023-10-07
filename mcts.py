@@ -93,7 +93,13 @@ class Node(object):
 @torch.no_grad()
 def apv_mcts(game, root_state, model, num_iterations):
     '''
+    Implementation of the APV-MCTS variant used in the AlphaZero algorithm. 
 
+    This algorithm differs from traditional MCTS in that the simulation from 
+    leaf node to terminal state is replaced by evaluation by a neural network. 
+    This way, instead of having to play out different scenarios and backpropagate 
+    received reward, we can just estimate it using a nn and backpropagate that 
+    estimated value. 
     
     '''
     root_node = Node(root_state, None)
