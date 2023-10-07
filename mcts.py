@@ -16,37 +16,23 @@ class Node(object):
         
         self.state = state
         self.terminal = False
-        self.children = []
+        self.children = {}
         self.parent = parent
         
-        self.total_value_s_a = 0
-        self.mean_value_s_a = 0 
-        self.prior_probabilities = []
-        self.num_visits_s_a = 0
-        self.num_visits_s = 0 
-        
+        ''' 
+        the following are the quantities required to be stored as per the 
+        MCTS implementation in the AlphaGo Zero paper, extended in the 
+        AlphaZero paper 
 
-        
-
-class MCTS(object): 
-
-
-    def __init__(self, model, exploration_factor) -> None:
-        
-        
+        we use dictionaries to use action as a key to easily access values 
+        for evaluation. We could alternatively initialize lists with length 
+        equal to number of actions, but this way we save some memory 
+        '''
         self.total_value_s_a = {}
-        self.mean_value_s_a = {}
-        
-        self.policies_s = {}
-        
+        self.mean_value_s_a = {} 
+        self.prior_probabiliy = 0 
         self.num_visits_s_a = {}
-        self.num_visits_s = {}
-
-        self.terminal_states = {}
-
-        self.nn = model 
-
-        self.exploration_factor = exploration_factor
+        self.num_visits_s = 0 
 
     def UCT(self, state: str, possible_actions: list, c: float) -> list: 
 
@@ -104,57 +90,56 @@ class MCTS(object):
             self.total_value_s_a[(state, action)] += result
             self.mean_value_s_a[(state, action)] = self.total_value_s_a[(state, action)] / self.num_visits_s_a[(state, action)]
 
-    @torch.no_grad()
-    def search(self, root_state, num_iterations):
-        '''
-        
-        
-        What's left to do from a skeletal implementation perspective: 
-        1. Update probabilities_s when visiting a new leaf state 
-        2. figure out what to do with predicted value..? 
-        3. Initialize pairs to 0 
+@torch.no_grad()
+def apv_mcts(game, root_state, model, num_iterations):
+    '''
+
     
-        
-        '''
+    '''
+    root_node = Node(root_state, None)
 
-        for _ in range(num_iterations):
-            state = root_state
+    for _ in range(num_iterations):
+        node = root_node
 
-            # The purpose of this loop is to get us from our current node to a terminal node or a leaf node 
-            # so that we can either end the game or continue to expand 
-            while not self.game.is_terminal(state):
+        # The purpose of this loop is to get us from our current node to a terminal node or a leaf node 
+        # so that we can either end the game or continue to expand 
 
-                if self.num_visits_s.get(state, 0) == 0:
-                    break
-                
-                possible_actions = self.game.possible_actions(state)
-
-                if len(possible_actions) > 0: 
-                    action = self.select_action(state=state, possible_actions=possible_actions)
-                    next_state = self.game.step(action)
-                    state = next_state 
-
-                else: 
-                    logging.info(f"Terminal state detected: no possible actions from state {state}")
-                    break
-                
-
-            #simulation phase
-            traversal_history = []
-            while not self.game.is_terminal(state):
-                
-                possible_actions = self.game.possible_actions(state)
-
-                action = random.choice(possible_actions())
-                next_state = self.game.step(action)
-                
-                state = next_state
+        while node.children and not game.is_terminal(state): 
             
-            reward = self.game.reward(state)
-            self.backpropagate(reward, traversed_states=traversal_history)
+            possible_actions = game.possible_actions(state)
 
-                
+            if len(possible_actions) > 0: 
+                action = node.select_action(state=state, possible_actions=possible_actions)
+                next_state = game.step(action)
+                node = Node(state=next_state, parent=state)
+                state = next_state 
 
+            else: 
+                logging.info(f"Terminal state detected: no possible actions from state {state}")
+                break
+            
 
+        #expansion phase
+        if not game.is_terminal(node.state):
+            
+            policy, value = model.predict(node.state)
+            policy = policy.cpu().detach().numpy()
+            possible_actions = game.possible_actions(node.state)
 
+            mask = np.zeros_like(policy, dtype=np.float32)
+
+            mask[possible_actions] = 1
+
+            policy *= mask
+
+            for action, probability in policy: 
+                if probability > 0: 
+                    next_state = game.step(action)
+                    child = Node(state=next_state, parent=state)
+                    child.prior_probabiliy = probability
+                    node.children[action] = child
+
+        
+        node.backpropagate(value)
+        
         return 
