@@ -12,7 +12,7 @@ import logging
 
 
 class Node(object): 
-    def __init__(self, state, parent) -> None:
+    def __init__(self, state, parent, action_space) -> None:
         
         self.state = state
         self.terminal = False
@@ -23,20 +23,19 @@ class Node(object):
         the following are the quantities required to be stored as per the 
         MCTS implementation in the AlphaGo Zero paper, extended in the 
         AlphaZero paper 
-
-        we use dictionaries to use action as a key to easily access values 
-        for evaluation. We could alternatively initialize lists with length 
-        equal to number of actions, but this way we save some memory 
         '''
-        self.total_value_s_a = {}
-        self.mean_value_s_a = {} 
+
+        self.total_value_s_a = [0 for _ in range(action_space)]
+        self.Q_s_a = [0 for _ in range(action_space)]
         self.prior_probabiliy = 0 
-        self.num_visits_s_a = {}
+        self.num_visits_s_a = [0 for _ in range(action_space)]
         self.num_visits_s = 0 
 
-    def UCT(self, state: str, possible_actions: list, c: float) -> list: 
+    def UCT(self, possible_actions: list, c: float) -> list: 
 
-        policies, value = self.nn(state)
+        state = self.state
+
+        policies, value = self.nn.predict(state)
 
         mask = torch.zeros_like(policies, dtype=torch.float32, device=policies.device)
         mask[possible_actions] = 1
@@ -44,13 +43,11 @@ class Node(object):
 
         policies_np = policies.cpu().detach().numpy()
 
-        self.policies_s[state] = policies_np
-
         # Create an array for num_visits_s_a values
-        num_visits_s_a_array = np.array([self.num_visits_s_a[(state, action)] for action in range(self.game._get_action_space())])
+        num_visits_s_a_array = np.array([self.num_visits_s_a[action] for action in range(self.game._get_action_space())])
 
         # U (s, a) = C(s)P (s, a) N (s)/(1 + N (s, a))
-        uct_values = c * self.policies_s[state] * (np.sqrt(self.num_visits_s[state]) / (1 + num_visits_s_a_array))
+        uct_values = c * self.prior_probabiliy * (np.sqrt(self.num_visits_s[state]) / (1 + num_visits_s_a_array))
 
         return uct_values
 
@@ -63,7 +60,7 @@ class Node(object):
         This function returns the node's child with the highest UCT value. 
 
         '''
-        unexplored_actions = [action for action in possible_actions if self.num_visits_s_a[(state, action)]==0]
+        unexplored_actions = [action for action in possible_actions if self.num_visits_s_a[action]==0]
         
         #If there's more than one unvisited child, sample one to visit randomly. 
         if unexplored_actions:
@@ -79,16 +76,14 @@ class Node(object):
         Once we reach an unvisited leaf, we simulate a traversal from it to a terminal state 
         '''
 
-    def backpropagate(self, result, traversed_states):
+    def backpropagate(self, result):
         '''
         Update the current node and propagate back to the root.
         '''
-        for state, action in reversed(traversed_states):
-            
-            self.num_visits_s[state] += 1
-            self.num_visits_s_a[(state, action)] += 1
-            self.total_value_s_a[(state, action)] += result
-            self.mean_value_s_a[(state, action)] = self.total_value_s_a[(state, action)] / self.num_visits_s_a[(state, action)]
+        self.num_visits_s += 1
+        self.wins += result
+        if self.parent:
+            self.parent.backpropagate(1 - result)
 
 @torch.no_grad()
 def apv_mcts(game, root_state, model, num_iterations):
@@ -110,6 +105,8 @@ def apv_mcts(game, root_state, model, num_iterations):
         # The purpose of this loop is to get us from our current node to a terminal node or a leaf node 
         # so that we can either end the game or continue to expand 
 
+        path = []
+
         while node.children and not game.is_terminal(state): 
             
             possible_actions = game.possible_actions(state)
@@ -123,9 +120,13 @@ def apv_mcts(game, root_state, model, num_iterations):
             else: 
                 logging.info(f"Terminal state detected: no possible actions from state {state}")
                 break
+
+            path.append((node, action))
             
 
         #expansion phase
+        #for our leaf node, expand by adding possible children from that game state 
+        #to node.children
         if not game.is_terminal(node.state):
             
             policy, value = model.predict(node.state)
@@ -136,16 +137,26 @@ def apv_mcts(game, root_state, model, num_iterations):
 
             mask[possible_actions] = 1
 
+            #we don't want to expand for actions that aren't possible, this allows us to make that distinction 
             policy *= mask
 
             for action, probability in policy: 
                 if probability > 0: 
                     next_state = game.step(action)
                     child = Node(state=next_state, parent=state)
-                    child.prior_probabiliy = probability
+                    child.prior_probabiliy = probability #according to AGZ paper 
                     node.children[action] = child
 
-        
-        node.backpropagate(value)
+        leaf = path[-1][0]
+        _, value = model.predict(leaf.state)
+
+
+        #backpropagation phase 
+        for node, action in reversed(path): 
+            node.num_visits_s +=1
+            node.num_visits_s_a[action]+=1
+            node.total_value_s_a[action]+=value
+            node.Q_s_a[action] = node.total_value_s_a[action] / node.num_visits_s_a[action]
+            value = -value #reverse value as each move alternates between players 
         
         return 
