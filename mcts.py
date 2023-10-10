@@ -10,8 +10,7 @@ import numpy as np
 import torch
 
 
-
-class Node():
+class Node:
     def __init__(self, state, action_space) -> None:
 
         self.state = state
@@ -33,14 +32,11 @@ class Node():
 
         # Create an array for num_visits_s_a values
         num_visits_s_a_array = np.array(
-            [
-                self.num_visits_s_a[action]
-                for action in range(game.get_action_space())
-            ]
+            [self.num_visits_s_a[action] for action in range(game.get_action_space())]
         )
 
         # U (s, a) = C(s)P (s, a) N (s)/(1 + N (s, a))
-        #need to make sure that this will work as an array
+        # need to make sure that this will work as an array
         uct_values = (
             c
             * self.prior_probability
@@ -100,9 +96,7 @@ def apv_mcts(game, root_state, model, num_iterations, c):
 
             if len(possible_actions) > 0:
                 action = node.select_action(
-                    game=game,
-                    possible_actions=possible_actions,
-                    c=c
+                    game=game, possible_actions=possible_actions, c=c
                 )
                 next_state = game.step(action)
                 node = Node(next_state, game.get_action_space())
@@ -120,7 +114,7 @@ def apv_mcts(game, root_state, model, num_iterations, c):
         # to node.children
         if not game.is_terminal(node.state):
 
-            policy, value = model.predict(node.state)
+            policy, _ = model.predict(node.state)
             policy = policy.cpu().detach().numpy()
             possible_actions = game.possible_actions(node.state)
 
@@ -150,5 +144,8 @@ def apv_mcts(game, root_state, model, num_iterations, c):
                 node.total_value_s_a[action] / node.num_visits_s_a[action]
             )
             value = -value  # reverse value as each move alternates between players
+        root = Node(root_state, action_space=game.get_action_space())
 
-        return
+        return max(
+            root.children, key=lambda child: child.visits
+        )  # need to figure this part out
