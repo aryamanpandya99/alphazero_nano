@@ -85,10 +85,9 @@ def apv_mcts(game, root_state, model, num_iterations, c):
     estimated value. 
     
     """
-    root_node = Node(root_state, game.get_action_space())
 
     for _ in range(num_iterations):
-        node = root_node
+        node = Node(root_state, game.get_action_space())
 
         # The purpose of this loop is to get us from our current node to a
         # terminal node or a leaf node so that we can either end the game
