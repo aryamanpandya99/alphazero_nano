@@ -25,7 +25,7 @@ class Node():
 
         self.total_value_s_a = [0 for _ in range(action_space)]
         self.q_s_a = [0 for _ in range(action_space)]
-        self.prior_probabiliy = 0
+        self.prior_probability = 0
         self.num_visits_s_a = [0 for _ in range(action_space)]
         self.num_visits_s = 0
 
@@ -43,7 +43,7 @@ class Node():
         #need to make sure that this will work as an array
         uct_values = (
             c
-            * self.prior_probabiliy
+            * self.prior_probability
             * (np.sqrt(self.num_visits_s) / (1 + num_visits_s_a_array))
         )
 
@@ -136,7 +136,7 @@ def apv_mcts(game, root_state, model, num_iterations, c):
                 if probability > 0:
                     next_state = game.step(action)
                     child = Node(next_state, game.action_space)
-                    child.prior_probabiliy = probability  # according to AGZ paper
+                    child.prior_probability = probability  # according to AGZ paper
                     node.children[action] = child
 
         _, value = model.predict(path[-1][0].state)
