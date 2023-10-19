@@ -8,15 +8,12 @@ from torch import nn
 import numpy as np
 
 
-class othello_model(nn.Module):
-    
+class OthelloNN(nn.Module):
     '''
     Convolutional neural network used in the AlphaZero implementation scaled 
     for the dimensions of the othello game. 
     '''
-        
     def __init__(self) -> None:
-        
         '''
         Initialization of the neural network graph. 
         Contains a common body that includes 4 sequential Conv2D operations 
@@ -25,13 +22,9 @@ class othello_model(nn.Module):
         in the original DeepMind paper supplemental materials. 
         '''
 
-        super(othello_model, self).__init__()
-        
-        '''
-        we expect an input of dimensionality 8 x 8 x 7
-        following conventions from the paper:
-        N x N -> 8 x 8. M = 2, T = 3, L =1 (who's playing)
-        '''
+        super().__init__()
+        #we expect an input of dimensionality 8 x 8 x 7 following conventions from the paper:
+        #N x N -> 8 x 8. M = 2, T = 3, L =1 (who's playing)
 
         self.conv1 = nn.Sequential(
             nn.Conv2d(in_channels=7, out_channels=128, kernel_size=3, padding=1),
