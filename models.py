@@ -9,13 +9,29 @@ import numpy as np
 
 
 class othello_model(nn.Module):
+    
+    '''
+    Convolutional neural network used in the AlphaZero implementation scaled 
+    for the dimensions of the othello game. 
+    '''
+        
     def __init__(self) -> None:
+        
+        '''
+        Initialization of the neural network graph. 
+        Contains a common body that includes 4 sequential Conv2D operations 
+        followed by batch normalization and ReLU. 
+        Contains two separate heads for policy and value estimation as specified 
+        in the original DeepMind paper supplemental materials. 
+        '''
 
         super(othello_model, self).__init__()
-
-        # we expect an input of dimensionality 8 x 8 x 7
-        # following conventions from the paper:
-        # N x N -> 8 x 8. M = 2, T = 3, L =1 (who's playing)
+        
+        '''
+        we expect an input of dimensionality 8 x 8 x 7
+        following conventions from the paper:
+        N x N -> 8 x 8. M = 2, T = 3, L =1 (who's playing)
+        '''
 
         self.conv1 = nn.Sequential(
             nn.Conv2d(in_channels=7, out_channels=128, kernel_size=3, padding=1),
@@ -51,4 +67,25 @@ class othello_model(nn.Module):
         )
 
     def forward(self, state) -> tuple(np.array, int):
-        pass
+        '''
+        Forward pass for the nn graph
+
+        Args:
+            param1: self
+            param2: state- game state at time of evaluation 
+
+        Returns:
+            pi (torch.tensor): policy pi[a|s]
+            val (float32): scalar value estimate from input state 
+        '''
+
+        s = self.conv1(state)
+        s = self.conv2(s)
+        s = self.conv3(s)
+        s = self.conv4(s)
+
+        pi = self.policy_head(s)
+        s = self.value_head_conv(s)
+        val = self.value_head_linear(s)
+
+        return pi, val
