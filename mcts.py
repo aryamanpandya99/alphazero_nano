@@ -4,14 +4,17 @@ File contents: Implementation of Monte Carlo Tree Search as well and the
 components needed to support it
 """
 
-import random
 import logging
+import random
+
 import numpy as np
 import torch
 
+from Game import Game
+
 
 class Node:
-    def __init__(self, state, action_space) -> None:
+    def __init__(self, state, action_space: int) -> None:
 
         self.state = state
         self.children = {}
@@ -32,7 +35,7 @@ class Node:
 
         # Create an array for num_visits_s_a values
         num_visits_s_a_array = np.array(
-            [self.num_visits_s_a[action] for action in range(game.get_action_space())]
+            [self.num_visits_s_a[a] for a in range(game.getActionSize())]
         )
 
         # U (s, a) = C(s)P (s, a) N (s)/(1 + N (s, a))
@@ -47,19 +50,20 @@ class Node:
 
     def select_action(self, game, c, possible_actions: list) -> int:
         """
-        The Upper Confidence bound algorithm for Trees (uct) outputs the 
-        desirability of visiting a certain node. It is calculated taking into 
-        account the predicted value of that node as well as the number of times that node 
-        has been visited in the past to trade off exploration and exploitation. 
+        The Upper Confidence bound algorithm for Trees (uct) outputs the
+        desirability of visiting a certain node. It is calculated taking into
+        account the predicted value of that node as well as the number of
+        times that node has been visited in the past to trade off exploration
+        and exploitation.
 
-        This function returns the node's child with the highest uct value. 
+        This function returns the node's child with the highest uct value.
 
         """
         unexplored_actions = [
-            action for action in possible_actions if self.num_visits_s_a[action] == 0
+            a for a in possible_actions if self.num_visits_s_a[a] == 0
         ]
 
-        # If there's more than one unvisited child, sample one to visit randomly.
+        # If more than one unvisited child, sample one to visit randomly
         if unexplored_actions:
             return random.choice(unexplored_actions)
 
@@ -70,49 +74,60 @@ class Node:
 
 
 @torch.no_grad()
-def apv_mcts(game, root_state, model, num_iterations, c):
+def apv_mcts(
+        game: Game,
+        root_state,
+        model: torch.nn.Module(),
+        num_iterations: int,
+        c: float):
     """
-    Implementation of the APV-MCTS variant used in the AlphaZero algorithm. 
+    Implementation of the APV-MCTS variant used in the AlphaZero algorithm.
 
-    This algorithm differs from traditional MCTS in that the simulation from 
-    leaf node to terminal state is replaced by evaluation by a neural network. 
-    This way, instead of having to play out different scenarios and backpropagate 
-    received reward, we can just estimate it using a nn and backpropagate that 
-    estimated value. 
-    
+    This algorithm differs from traditional MCTS in that the simulation from
+    leaf node to terminal state is replaced by evaluation by a neural network.
+    This way, instead of having to play out different scenarios and
+    backpropagate received reward, we can just estimate it using a nn and
+    backpropagate that estimated value.
+
+    TODO: Investigate how switching players in our given game API would apply
+    to this algorithm
+
     """
-
+    player = 1
     for _ in range(num_iterations):
-        node = Node(root_state, game.get_action_space())
+        node = Node(root_state, game.getActionSize())
 
         # The purpose of this loop is to get us from our current node to a
         # terminal node or a leaf node so that we can either end the game
         # or continue to expand
 
         path = []
-        while node.children and not game.is_terminal(node.state):
+        while node.children and not game.getGameEnded(node.state):
 
-            possible_actions = game.possible_actions(node.state)
+            possible_actions = game.getValidMoves(node.state)
 
             if len(possible_actions) > 0:
                 action = node.select_action(
                     game=game, possible_actions=possible_actions, c=c
                 )
-                next_state = game.step(action)
-                node = Node(next_state, game.get_action_space())
+                next_state, player = game.getNextState(
+                    board=node.state,
+                    player=player,
+                    action=action)
+                node = Node(next_state, game.getActionSize())
 
             else:
                 logging.info(
-                    f"Terminal state detected: no possible actions from state {node.state}"
+                    f"Terminal state: no possible actions from {node.state}"
                 )
                 break
 
             path.append((node, action))
 
         # expansion phase
-        # for our leaf node, expand by adding possible children from that game state
-        # to node.children
-        if not game.is_terminal(node.state):
+        # for our leaf node, expand by adding possible children
+        # from that game state to node.children
+        if not game.getGameEnded(node.state):
 
             policy, _ = model.predict(node.state)
             policy = policy.cpu().detach().numpy()
@@ -129,8 +144,8 @@ def apv_mcts(game, root_state, model, num_iterations, c):
             for action, probability in policy:
                 if probability > 0:
                     next_state = game.step(action)
-                    child = Node(next_state, game.action_space)
-                    child.prior_probability = probability  # according to AGZ paper
+                    child = Node(next_state, game.getActionSize())
+                    child.prior_probability = probability
                     node.children[action] = child
 
         _, value = model.predict(path[-1][0].state)
@@ -143,8 +158,8 @@ def apv_mcts(game, root_state, model, num_iterations, c):
             node.q_s_a[action] = (
                 node.total_value_s_a[action] / node.num_visits_s_a[action]
             )
-            value = -value  # reverse value as each move alternates between players
-        root = Node(root_state, action_space=game.get_action_space())
+            value = -value  # reverse value we alternates between players
+        root = Node(root_state, action_space=game.getActionSize())
 
         return max(
             root.children, key=lambda child: child.visits
