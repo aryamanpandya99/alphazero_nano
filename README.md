@@ -11,9 +11,8 @@ The project structure is as follows:
 ├── Othello               # Added games from alpha_zero_general repository (MIT License)
 ├── TicTacToe             # Added games from alpha_zero_general repository (MIT License)
 ├── tests                 # Directory for test scripts
-├── agent.py              # Implementation of the AlphaZeroNano agent
-├── Game.py               # Game environment for AlphaZeroNano to interact with
-├── main.py               # Main program entry: training, evaluation, and visualization
+├── agent.py              # Implementation of AlphaZero agent and necessary functions: training & evaluation
+├── main.py               # Main program entry
 ├── mcts.py               # Monte Carlo Tree Search and supporting functions
 ├── models.py             # Convolutional neural network for board state evaluation
 └── README.md             # Documentation of the project
