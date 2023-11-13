@@ -6,7 +6,7 @@ AlphaZeroNano is a miniature implementation of the famous AlphaZero, designed to
 
 The project structure is as follows:
 
-.
+```
 ├── .github/workflows     # Contains GitHub workflow definitions (e.g., for linting with pylint)
 ├── Othello               # Added games from alpha_zero_general repository (MIT License)
 ├── TicTacToe             # Added games from alpha_zero_general repository (MIT License)
@@ -19,7 +19,7 @@ The project structure is as follows:
 └── README.md             # Documentation of the project
 
 Please note that the project is structured to separate components logically, with the core functionality encapsulated in `agent.py`, `Game.py`, `mcts.py`, and `models.py`. The games Othello and TicTacToe from the alpha_zero_general repository are included under their respective directories, and tests are placed within the `tests` directory.
-
+```
 
 ## Acknowledgments
 
