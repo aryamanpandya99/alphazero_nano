@@ -4,14 +4,9 @@ File contents: Implementation of our AlphaZero Nano agent.
 This file contains the training code and supporting functions
 required to enable training through self play.
 """
-import sys
-
 import numpy as np
-
-sys.path.append("Othello")
-
 import torch
-from othello_game import OthelloGame
+from torch.utils.data import DataLoader, TensorDataset
 
 from Game import Game
 from mcts import apv_mcts
@@ -48,20 +43,24 @@ class AlphaZeroNano:
         """
         pass
 
-    def retrain_nn(self, train_data):
+    def retrain_nn(self, train_data: list) -> None:
         """
         ENTER DOCSTRING - neural network trainer
-
-        TODO: batch our data to optimize train time 
         """
         policy_loss_fn = torch.nn.CrossEntropyLoss()
         value_loss_fn = torch.nn.MSELoss()
 
-        for state, policy, result in train_data:
-            x_train = state
-            policy_train = policy
-            value_train = result
+        states, policies, results = zip(*train_data)
+        states_tensor = torch.tensor(states, dtype=torch.float32)
+        policies_tensor = torch.tensor(policies, dtype=torch.float32)
+        results_tensor = torch.tensor(results, dtype=torch.float32)
 
+        dataset = TensorDataset(states_tensor, policies_tensor, results_tensor)
+
+        batch_size = 64  # You can adjust the batch size
+        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+
+        for x_train, policy_train, value_train in dataloader:
             policy_pred, value_pred = self.model.predict(x_train)
 
             policy_loss = policy_loss_fn(policy_train, policy_pred)
