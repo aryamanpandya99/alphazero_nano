@@ -17,7 +17,6 @@ The project structure is as follows:
 ├── models.py             # Convolutional neural network for board state evaluation
 └── README.md             # Documentation of the project
 
-Please note that the project is structured to separate components logically, with the core functionality encapsulated in `agent.py`, `Game.py`, `mcts.py`, and `models.py`. The games Othello and TicTacToe from the alpha_zero_general repository are included under their respective directories, and tests are placed within the `tests` directory.
 ```
 
 ## Acknowledgments
