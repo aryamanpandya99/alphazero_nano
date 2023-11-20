@@ -102,10 +102,8 @@ def apv_mcts(
         # or continue to expand
 
         path = []
-        while node.children and not game.getGameEnded(node.state):
-
+        while node.children and not game.getGameEnded(node.state, player=player):
             possible_actions = game.getValidMoves(node.state)
-
             if len(possible_actions) > 0:
                 action = node.select_action(
                     game=game, possible_actions=possible_actions, c=c
@@ -127,14 +125,11 @@ def apv_mcts(
         # expansion phase
         # for our leaf node, expand by adding possible children
         # from that game state to node.children
-        if not game.getGameEnded(node.state):
-
-            policy, _ = model.predict(node.state)
+        if not game.getGameEnded(node.state, player=player):
+            policy, _ = model(torch.tensor(node.state, dtype=torch.float32))
             policy = policy.cpu().detach().numpy()
             possible_actions = game.possible_actions(node.state)
-
             mask = np.zeros_like(policy, dtype=np.float32)
-
             mask[possible_actions] = 1
 
             # we don't want to expand for actions that aren't possible,
@@ -148,7 +143,7 @@ def apv_mcts(
                     child.prior_probability = probability
                     node.children[action] = child
 
-        _, value = model.predict(path[-1][0].state)
+        _, value = model(torch.tensor(path[-1][0].state, dtype=torch.float32))
 
         # backpropagation phase
         for node, action in reversed(path):

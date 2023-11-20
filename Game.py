@@ -1,4 +1,4 @@
-# from Alpha-zero general, Surag Nair 
+# from Alpha-zero general, Surag Nair
 class Game():
     """
     This class specifies the base Game class. To define your own game, subclass

@@ -194,7 +194,7 @@ class AlphaZeroNano:
             game_states = []
             game_state = self.game.getInitBoard()
             player = 1
-            while not self.game.getGameEnded():
+            while not self.game.getGameEnded(board=game_state, player=player):
                 policy = apv_mcts(
                     game=self.game,
                     root_state=game_state,
