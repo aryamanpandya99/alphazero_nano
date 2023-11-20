@@ -1,3 +1,4 @@
 *.ipynb
 .vscode/
 __pycache__
+.mypy_cache
