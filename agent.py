@@ -35,15 +35,20 @@ class AlphaZeroNano:
               neural_network: torch.nn.Module,
               train_batch_size: int,
               num_epochs: int,
-              num_episodes: int):
+              num_episodes: int) -> torch.nn.Module:
         """
-    while TRAINING_NOT_CONVERGED:
-    training_data = SELF_PLAY(current_network)
-    RETRAIN_NETWORK(current_network, training_data)
-    new_network = COPY_OF(current_network)
-    best_network = EVALUATE_NETWORK(new_network, current_network)
-    if best_network == new_network:
-        current_network = new_network
+        Main agent trainer. Combines self play with MCTS and 
+        network retraining based on this experience to develop 
+        our agent. Returns trained neural network.
+
+        Args:
+            neural_network (torch.nn.Module) 
+            train_batch_size (int)
+            num_epochs (int)
+            num_episodes (int)
+
+        Returns:
+            current_network (torch.nn.Module)
         """
         current_network = neural_network
 
@@ -67,13 +72,26 @@ class AlphaZeroNano:
                 10
             )
 
+        return current_network
+
     def evaluate_networks(self,
                           network_a: torch.nn.Module,
                           network_b: torch.nn.Module,
                           num_games: int,
-                          threshold=0.6):
+                          threshold=0.6) -> torch.nn.Module:
         """
-        ENTER DOCSTRING - neural network trainer
+        Evaluate networks. Makes two networks play a specified 
+        number of games against one another and returns the second
+        network if it beats the first beyond some threshold %
+
+        Args:
+            network_a (torch.nn.Module) 
+            network_b (torch.nn.Module)
+            num_games (int)
+            threshold (float)
+
+        Returns:
+            network (torch.nn.Module)
         """
         network_a_wins = 0
 
@@ -94,7 +112,15 @@ class AlphaZeroNano:
                    train_data: list,
                    train_batch_size: int) -> None:
         """
-        ENTER DOCSTRING - neural network trainer
+        Neural network trainer function. 
+
+        Args:
+            neural_network (torch.nn.Module) 
+            train_data (list)
+            train_batch_size (int)
+
+        Returns:
+            N/A
         """
         policy_loss_fn = torch.nn.CrossEntropyLoss()
         value_loss_fn = torch.nn.MSELoss()
@@ -118,7 +144,12 @@ class AlphaZeroNano:
                   network_a: torch.nn.Module,
                   network_b: torch.nn.Module) -> bool:
         """
-        ENTER DOCSTRING - MCTS game player
+        Makes two network play a game against one another.
+        Args:
+            network_a (torch.nn.Module)
+            network_b (torch.nn.Module)
+        Returns:
+            result (bool)
         """
         game_state = self.game.getInitBoard()
         player = 1
@@ -144,7 +175,15 @@ class AlphaZeroNano:
 
     def self_play(self, model: torch.nn.Model, num_episodes: int):
         """
-        ENTER DOCSTRING - MCTS game player
+        Self play. Simulates number of episodes using MCTS and a given
+        neural network. 
+
+        Args:
+            model (torch.nn.Module)
+            num_episodes (int)
+
+        Returns:
+            episodes (list)
         """
         train_episodes = []
 
@@ -181,7 +220,15 @@ class AlphaZeroNano:
 
     def batch_episodes(self, train_data: list, batch_size: int):
         """
-        ENTER DOCSTRING - tensor batching helper
+        Batch episodes: given a list of experience, unpacks and
+        converts to torch loaders.
+
+        Args:
+            train_data (list)
+            batch_size (int)
+
+        Returns:
+            dataloader (TensorDataset)
         """
         states, policies, results = zip(*train_data)
         states_tensor = torch.tensor(states, dtype=torch.float32)

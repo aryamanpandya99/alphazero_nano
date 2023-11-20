@@ -118,7 +118,7 @@ def apv_mcts(
 
             else:
                 logging.info(
-                    f"Terminal state: no possible actions from {node.state}"
+                    "Terminal state: no possible actions from %s", (node.state)
                 )
                 break
 
