@@ -126,9 +126,12 @@ def apv_mcts(
         # for our leaf node, expand by adding possible children
         # from that game state to node.children
         if not game.getGameEnded(node.state, player=player):
+            # so the model is designed to take in something with dims 8 x 8 x 7
+            # this is to include stuff like who the player playing is etc. 
+            # currently this doesn't work, need to incorporate that
             policy, _ = model(torch.tensor(node.state, dtype=torch.float32).unsqueeze(0))
             policy = policy.cpu().detach().numpy()
-            possible_actions = game.possible_actions(node.state)
+            possible_actions = game.possible_actions(node.state) 
             mask = np.zeros_like(policy, dtype=np.float32)
             mask[possible_actions] = 1
 
