@@ -126,7 +126,7 @@ def apv_mcts(
         # for our leaf node, expand by adding possible children
         # from that game state to node.children
         if not game.getGameEnded(node.state, player=player):
-            policy, _ = model(torch.tensor(node.state, dtype=torch.float32))
+            policy, _ = model(torch.tensor(node.state, dtype=torch.float32).unsqueeze(0))
             policy = policy.cpu().detach().numpy()
             possible_actions = game.possible_actions(node.state)
             mask = np.zeros_like(policy, dtype=np.float32)
@@ -143,7 +143,7 @@ def apv_mcts(
                     child.prior_probability = probability
                     node.children[action] = child
 
-        _, value = model(torch.tensor(path[-1][0].state, dtype=torch.float32))
+        _, value = model(torch.tensor(path[-1][0].state, dtype=torch.float32).unsqueeze(0))
 
         # backpropagation phase
         for node, action in reversed(path):
