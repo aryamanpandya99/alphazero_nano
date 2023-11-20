@@ -3,7 +3,7 @@ import sys
 
 sys.path.append("..")
 from Game import Game
-from .OthelloLogic import Board
+from othello_logic import Board
 import numpy as np
 
 

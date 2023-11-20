@@ -14,6 +14,9 @@ from Game import Game
 
 
 class Node:
+    """
+    Class: MCTS node 
+    """
     def __init__(self, state, action_space: int) -> None:
 
         self.state = state
@@ -89,11 +92,8 @@ def apv_mcts(
     backpropagate received reward, we can just estimate it using a nn and
     backpropagate that estimated value.
 
-    TODO: Investigate how switching players in our given game API would apply
-    to this algorithm
-
     """
-    player = 1
+    player = 1  # assumption across this system is we're going to start simulations w/ player 1
     for _ in range(num_iterations):
         node = Node(root_state, game.getActionSize())
 

@@ -29,6 +29,9 @@ class AlphaZeroNano:
         self.c_parameter = c_uct
         self.num_simulations = num_simulations
         self.optimizer = optimizer
+
+        # notes: dynamics differences. Each game object instance 
+        # is a game instance. Need to figure out how to re-initialize..?
         self.game = game
 
     def train(self,
@@ -173,7 +176,7 @@ class AlphaZeroNano:
 
         return game_state.getGameEnded()
 
-    def self_play(self, model: torch.nn.Model, num_episodes: int):
+    def self_play(self, model: torch.nn.Module, num_episodes: int):
         """
         Self play. Simulates number of episodes using MCTS and a given
         neural network. 
@@ -191,7 +194,7 @@ class AlphaZeroNano:
             game_states = []
             game_state = self.game.getInitBoard()
             player = 1
-            while not game_state.getGameEnded():
+            while not self.game.getGameEnded():
                 policy = apv_mcts(
                     game=self.game,
                     root_state=game_state,

@@ -59,7 +59,7 @@ class OthelloNN(nn.Module):
             nn.Linear(64, 64), nn.ReLU(), nn.Linear(64, 1), nn.Tanh()
         )
 
-    def forward(self, state) -> tuple(np.array, int):
+    def forward(self, state) -> tuple[np.array, int]:
         '''
         Forward pass for the nn graph
 
