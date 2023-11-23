@@ -6,7 +6,7 @@ components needed to support it
 
 import logging
 import random
-
+from collections import deque
 import numpy as np
 import torch
 
@@ -76,12 +76,26 @@ class Node:
         return np.max(action_uct)
 
 
+def split_player_boards(board: np.ndarray) -> tuple[np.ndarray, np.ndarray]: 
+    """
+    ENTER docstring
+    """
+
+
+def update_history_frames(history: np.ndarray, new_frame: np.ndarray): 
+    """
+    ENTER docstring 
+    """
+    board_player_1, board_player_2 = split_player_boards(new_frame_data)
+
+
 @torch.no_grad()
 def apv_mcts(
         game: Game,
         root_state,
         model: torch.nn.Module(),
         num_iterations: int,
+        T: int, 
         c: float):
     """
     Implementation of the APV-MCTS variant used in the AlphaZero algorithm.
@@ -93,6 +107,9 @@ def apv_mcts(
     backpropagate that estimated value.
 
     """
+    n, _ = game.getBoardSize()
+    m = 2  #  hard coded for othello as of now. one type of piece x 2 players
+    history_tensor = np.zeros((n, n, m * T + l))
     player = 1  # assumption across this system is we're going to start simulations w/ player 1
     for _ in range(num_iterations):
         node = Node(root_state, game.getActionSize())
@@ -102,6 +119,7 @@ def apv_mcts(
         # or continue to expand
 
         path = []
+        
         while node.children and not game.getGameEnded(node.state, player=player):
             possible_actions = game.getValidMoves(node.state)
             if len(possible_actions) > 0:
@@ -127,11 +145,11 @@ def apv_mcts(
         # from that game state to node.children
         if not game.getGameEnded(node.state, player=player):
             # so the model is designed to take in something with dims 8 x 8 x 7
-            # this is to include stuff like who the player playing is etc. 
+            # this is to include stuff like who the player playing is etc.
             # currently this doesn't work, need to incorporate that
             policy, _ = model(torch.tensor(node.state, dtype=torch.float32).unsqueeze(0))
             policy = policy.cpu().detach().numpy()
-            possible_actions = game.possible_actions(node.state) 
+            possible_actions = game.possible_actions(node.state)
             mask = np.zeros_like(policy, dtype=np.float32)
             mask[possible_actions] = 1
 
