@@ -80,13 +80,31 @@ def split_player_boards(board: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """
     ENTER docstring
     """
+    player_a = np.maximum(board, 0)
+    player_b = board.copy()
+    player_b[player_b < 0] = 1
+
+    return player_a, player_b
 
 
-def update_history_frames(history: np.ndarray, new_frame: np.ndarray): 
+def update_history_frames(history: np.ndarray, new_frame: np.ndarray, m: int, history_length: int): 
     """
-    ENTER docstring 
+    Updates the history of game boards with a new frame.
+
+    Shifts existing frames in history and adds the new frame at the end.
+
+    Args:
+        history (np.ndarray): Game frame history (NxNx(MT+L))
+        new_frame (np.ndarray): 2D array representing new game state.
+        m (int): Number of channels per frame.
+        history_length (int): Number of frames in history.
+
+    Returns:
+        None: Updates 'history' array in place.
     """
-    board_player_1, board_player_2 = split_player_boards(new_frame_data)
+    board_player_1, board_player_2 = split_player_boards(new_frame)
+    history[:, :, :m*(history_length-1)] = history[:, :, m:]
+    history[:, :, m*(history_length-1):m*history_length] = np.stack([board_player_1, board_player_2], axis=-1)
 
 
 @torch.no_grad()
@@ -95,7 +113,7 @@ def apv_mcts(
         root_state,
         model: torch.nn.Module(),
         num_iterations: int,
-        T: int, 
+        history_length: int, 
         c: float):
     """
     Implementation of the APV-MCTS variant used in the AlphaZero algorithm.
@@ -109,7 +127,7 @@ def apv_mcts(
     """
     n, _ = game.getBoardSize()
     m = 2  #  hard coded for othello as of now. one type of piece x 2 players
-    history_tensor = np.zeros((n, n, m * T + l))
+    history_tensor = np.zeros((n, n, m * history_length + l))
     player = 1  # assumption across this system is we're going to start simulations w/ player 1
     for _ in range(num_iterations):
         node = Node(root_state, game.getActionSize())
