@@ -106,6 +106,21 @@ def update_history_frames(history: np.ndarray, new_frame: np.ndarray, m: int, hi
     history[:, :, :m*(history_length-1)] = history[:, :, m:]
     history[:, :, m*(history_length-1):m*history_length] = np.stack([board_player_1, board_player_2], axis=-1)
 
+def add_player_information(board_tensor: np.ndarray, current_player: int):
+    """
+    Adds a feature plane indicating the current player.
+
+    Args:
+        board_tensor (np.ndarray): The tensor representing the game state.
+        current_player (int): The current player (e.g., 0 or 1).
+
+    Returns:
+        np.ndarray: Updated board tensor with the player information added.
+    """
+    # Assuming the last channel is for the current player information
+    player_plane = np.full((board_tensor.shape[0], board_tensor.shape[1]), current_player)
+    board_tensor[:, :, -1] = player_plane
+    return board_tensor
 
 @torch.no_grad()
 def apv_mcts(
@@ -126,18 +141,14 @@ def apv_mcts(
 
     """
     n, _ = game.getBoardSize()
-    m = 2  #  hard coded for othello as of now. one type of piece x 2 players
-    history_tensor = np.zeros((n, n, m * history_length + l))
     player = 1  # assumption across this system is we're going to start simulations w/ player 1
+    history_tensor = np.zeros((n, n, 2 * history_length + 1))  # hardcoded values for l and m, tech debt
     for _ in range(num_iterations):
         node = Node(root_state, game.getActionSize())
-
         # The purpose of this loop is to get us from our current node to a
         # terminal node or a leaf node so that we can either end the game
         # or continue to expand
-
         path = []
-        
         while node.children and not game.getGameEnded(node.state, player=player):
             possible_actions = game.getValidMoves(node.state)
             if len(possible_actions) > 0:
@@ -155,7 +166,12 @@ def apv_mcts(
                     "Terminal state: no possible actions from %s", (node.state)
                 )
                 break
-
+            update_history_frames(history=history_tensor,
+                                  history_length=history_length,
+                                  m=2,
+                                  new_frame=node.state
+                                )
+            history_tensor = add_player_information(history_tensor, player)
             path.append((node, action))
 
         # expansion phase
@@ -165,7 +181,7 @@ def apv_mcts(
             # so the model is designed to take in something with dims 8 x 8 x 7
             # this is to include stuff like who the player playing is etc.
             # currently this doesn't work, need to incorporate that
-            policy, _ = model(torch.tensor(node.state, dtype=torch.float32).unsqueeze(0))
+            policy, _ = model(torch.tensor(history_tensor, dtype=torch.float32).unsqueeze(0))
             policy = policy.cpu().detach().numpy()
             possible_actions = game.possible_actions(node.state)
             mask = np.zeros_like(policy, dtype=np.float32)
