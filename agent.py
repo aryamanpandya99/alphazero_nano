@@ -201,6 +201,7 @@ class AlphaZeroNano:
                     model=model,
                     num_iterations=self.num_simulations,
                     c=self.c_parameter,
+                    history_length=3
                 )
 
                 game_states.append((game_state, policy))

@@ -103,8 +103,10 @@ def update_history_frames(history: np.ndarray, new_frame: np.ndarray, m: int, hi
         None: Updates 'history' array in place.
     """
     board_player_1, board_player_2 = split_player_boards(new_frame)
-    history[:, :, :m*(history_length-1)] = history[:, :, m:]
-    history[:, :, m*(history_length-1):m*history_length] = np.stack([board_player_1, board_player_2], axis=-1)
+    history[m*(history_length-1):, :, :] = history[:, :, m:]
+    new_frames = np.stack([board_player_1, board_player_2], axis=0)
+    history[m*(history_length-1):m*history_length:, :] = new_frames
+
 
 def add_player_information(board_tensor: np.ndarray, current_player: int):
     """
@@ -142,7 +144,7 @@ def apv_mcts(
     """
     n, _ = game.getBoardSize()
     player = 1  # assumption across this system is we're going to start simulations w/ player 1
-    history_tensor = np.zeros((n, n, 2 * history_length + 1))  # hardcoded values for l and m, tech debt
+    history_array = np.zeros((2 * history_length + 1, n, n))  # hardcoded values for l and m, tech debt
     for _ in range(num_iterations):
         node = Node(root_state, game.getActionSize())
         # The purpose of this loop is to get us from our current node to a
@@ -166,22 +168,24 @@ def apv_mcts(
                     "Terminal state: no possible actions from %s", (node.state)
                 )
                 break
-            update_history_frames(history=history_tensor,
+            update_history_frames(history=history_array,
                                   history_length=history_length,
                                   m=2,
                                   new_frame=node.state
                                 )
-            history_tensor = add_player_information(history_tensor, player)
+            history_array = add_player_information(history_array, player)
             path.append((node, action))
 
         # expansion phase
         # for our leaf node, expand by adding possible children
         # from that game state to node.children
+
         if not game.getGameEnded(node.state, player=player):
             # so the model is designed to take in something with dims 8 x 8 x 7
             # this is to include stuff like who the player playing is etc.
             # currently this doesn't work, need to incorporate that
-            policy, _ = model(torch.tensor(history_tensor, dtype=torch.float32).unsqueeze(0))
+            history_tensor = torch.tensor(history_array, dtype=torch.float32).unsqueeze(0)
+            policy, _ = model(history_tensor)
             policy = policy.cpu().detach().numpy()
             possible_actions = game.possible_actions(node.state)
             mask = np.zeros_like(policy, dtype=np.float32)
@@ -198,7 +202,7 @@ def apv_mcts(
                     child.prior_probability = probability
                     node.children[action] = child
 
-        _, value = model(torch.tensor(path[-1][0].state, dtype=torch.float32).unsqueeze(0))
+        _, value = model(torch.tensor(path[-1][0].state, dtype=torch.float32))
 
         # backpropagation phase
         for node, action in reversed(path):
