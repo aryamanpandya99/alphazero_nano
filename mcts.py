@@ -144,7 +144,7 @@ def apv_mcts(
     """
     n, _ = game.getBoardSize()
     player = 1  # assumption across this system is we're going to start simulations w/ player 1
-    history_array = np.zeros((2 * history_length + 1, n, n))  # hardcoded values for l and m, tech debt
+    history_array = np.zeros((2 * history_length + 1, n, n))  # hardcoded values for l and m
     for _ in range(num_iterations):
         node = Node(root_state, game.getActionSize())
         # The purpose of this loop is to get us from our current node to a
