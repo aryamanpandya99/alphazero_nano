@@ -47,7 +47,7 @@ class OthelloNN(nn.Module):
             nn.ReLU(),
         )
 
-        self.policy_head = nn.Sequential(nn.Linear(8192, 64), nn.Softmax(dim=1))
+        self.policy_head = nn.Sequential(nn.Linear(8, 8196), nn.Softmax(dim=1))
 
         self.value_head_conv = nn.Sequential(
             nn.Conv2d(in_channels=128, out_channels=1, kernel_size=1),
@@ -56,7 +56,7 @@ class OthelloNN(nn.Module):
         )
 
         self.value_head_linear = nn.Sequential(
-            nn.Linear(64, 64), nn.ReLU(), nn.Linear(64, 1), nn.Tanh()
+            nn.Linear(8, 64), nn.ReLU(), nn.Linear(64, 1), nn.Tanh()
         )
 
     def forward(self, state) -> tuple[np.array, int]:

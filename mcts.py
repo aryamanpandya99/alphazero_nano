@@ -152,7 +152,7 @@ def apv_mcts(
         # or continue to expand
         path = []
         while node.children and not game.getGameEnded(node.state, player=player):
-            possible_actions = game.getValidMoves(node.state)
+            possible_actions = game.getValidMoves(node.state, player=player)
             if len(possible_actions) > 0:
                 action = node.select_action(
                     game=game, possible_actions=possible_actions, c=c
@@ -187,7 +187,7 @@ def apv_mcts(
             history_tensor = torch.tensor(history_array, dtype=torch.float32).unsqueeze(0)
             policy, _ = model(history_tensor)
             policy = policy.cpu().detach().numpy()
-            possible_actions = game.possible_actions(node.state)
+            possible_actions = game.getValidMoves(node.state, player=player)
             mask = np.zeros_like(policy, dtype=np.float32)
             mask[possible_actions] = 1
 
