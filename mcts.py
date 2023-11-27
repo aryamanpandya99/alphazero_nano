@@ -185,19 +185,27 @@ def apv_mcts(
             # this is to include stuff like who the player playing is etc.
             # currently this doesn't work, need to incorporate that
             history_tensor = torch.tensor(history_array, dtype=torch.float32).unsqueeze(0)
-            policy, _ = model(history_tensor)
-            policy = policy.cpu().detach().numpy()
+            policy, val = model(history_tensor)
+            print(f"value: {val.shape}")
+            policy = policy.cpu().detach().numpy().squeeze(0)
             possible_actions = game.getValidMoves(node.state, player=player)
+            print(f"possible actions: {possible_actions.shape}")
             mask = np.zeros_like(policy, dtype=np.float32)
+            print(f"mask: {mask.shape}")
+            print(f"policy: {policy.shape}")
             mask[possible_actions] = 1
 
             # we don't want to expand for actions that aren't possible,
             # this allows us to make that distinction
             policy *= mask
 
-            for action, probability in policy:
+            for action_idx, probability in enumerate(policy):
                 if probability > 0:
-                    next_state = game.step(action)
+                    next_state = game.getNextState(
+                        action=action_idx,
+                        board=node.state,
+                        player=player
+                    )
                     child = Node(next_state, game.getActionSize())
                     child.prior_probability = probability
                     node.children[action] = child
