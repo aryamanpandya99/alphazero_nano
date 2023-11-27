@@ -205,12 +205,9 @@ class AlphaZeroNano:
                 )
 
                 game_states.append((game_state, policy))
-
-                action = np.random.choice(
-                    np.arange(self.game.getActionSize()),
-                    p=policy
-                )
-
+                valid_moves = self.game.getValidMoves(game_state, player)
+                ones_indices = np.where(valid_moves == 1)[0]
+                action = np.random.choice(ones_indices)
                 game_state, player = self.game.getNextState(
                     game_state,
                     player,

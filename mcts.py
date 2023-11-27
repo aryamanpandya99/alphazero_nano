@@ -34,8 +34,11 @@ class Node:
         self.num_visits_s_a = [0 for _ in range(action_space)]
         self.num_visits_s = 0
 
-    def uct(self, game, c: float) -> list:
 
+    def uct(self, game, c: float) -> list:
+        """
+        ENTER Docstring
+        """
         # Create an array for num_visits_s_a values
         num_visits_s_a_array = np.array(
             [self.num_visits_s_a[a] for a in range(game.getActionSize())]
@@ -130,8 +133,9 @@ def apv_mcts(
         root_state,
         model: torch.nn.Module(),
         num_iterations: int,
-        history_length: int, 
-        c: float):
+        history_length: int,
+        c: float, 
+        temp = 1):
     """
     Implementation of the APV-MCTS variant used in the AlphaZero algorithm.
 
@@ -151,6 +155,7 @@ def apv_mcts(
         # terminal node or a leaf node so that we can either end the game
         # or continue to expand
         path = []
+        print(_)
         while (len(node.children.keys()) > 0) and not game.getGameEnded(node.state, player=player):
             print(f"count: {count}")
             count+=1
@@ -192,7 +197,7 @@ def apv_mcts(
             cannonical_board = game.getCanonicalForm(node.state, player=player)
             history_tensor = torch.tensor(history_array, dtype=torch.float32).unsqueeze(0)
             policy, val = model(history_tensor)
-            print(f"value: {val.shape}")
+            #print(f"value: {val.shape}")
             policy = policy.cpu().detach().numpy().squeeze(0)
             possible_actions = game.getValidMoves(node.state, player=player)
             policy *= possible_actions
@@ -220,4 +225,10 @@ def apv_mcts(
                 node.total_value_s_a[action] / node.num_visits_s_a[action]
             )
             value = -value  # reverse value we alternates between players
-        root = Node(root_state, action_space=game.getActionSize())
+
+    root = path[0][0]
+    visits = [x ** 1 / temp for x in root.num_visits_s_a]
+    sum_visits = float(sum(visits))
+    pi = [x / sum_visits for x in visits]
+
+    return pi
