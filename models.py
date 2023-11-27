@@ -84,7 +84,6 @@ class OthelloNN(nn.Module):
 
         pi = self.policy_head(s)
         s = self.value_head_conv(s)
-        print(f"pre val head linear: {s.shape}")
         val = self.value_head_linear(s)
 
         return pi, val
