@@ -151,7 +151,9 @@ def apv_mcts(
         # terminal node or a leaf node so that we can either end the game
         # or continue to expand
         path = []
-        while node.children and not game.getGameEnded(node.state, player=player):
+        while (len(node.children.keys()) > 0) and not game.getGameEnded(node.state, player=player):
+            print(f"count: {count}")
+            count+=1
             possible_actions = game.getValidMoves(node.state, player=player)
             if len(possible_actions) > 0:
                 action = node.select_action(
@@ -206,7 +208,8 @@ def apv_mcts(
                     child.prior_probability = probability
                     node.children[action_idx] = child
 
-        _, value = model(torch.tensor(path[-1][0].state, dtype=torch.float32))
+        if len(path) > 0:
+            _, value = model(torch.tensor(path[-1][0].state, dtype=torch.float32))
 
         # backpropagation phase
         for node, action in reversed(path):
@@ -218,7 +221,3 @@ def apv_mcts(
             )
             value = -value  # reverse value we alternates between players
         root = Node(root_state, action_space=game.getActionSize())
-
-        return max(
-            root.children, key=lambda child: child.visits
-        )  # need to figure this part out

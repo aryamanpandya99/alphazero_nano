@@ -157,7 +157,7 @@ class AlphaZeroNano:
         game_state = self.game.getInitBoard()
         player = 1
 
-        while not game_state.getGameEnded():
+        while not self.game.getGameEnded(board=game_state, player=player):
             if player == 1:
                 policy, _ = network_a.predict(game_state)
             else:
@@ -165,16 +165,16 @@ class AlphaZeroNano:
 
             _, action = torch.max(policy, dim=-1)
 
-            game_state, player = game_state.getNextState(
+            game_state, player = self.game.getNextState(
                 game_state,
                 player,
                 action
             )
 
         if player == -1:
-            return game_state.getGameEnded()
+            return self.game.getGameEnded(board=game_state, player=player)
 
-        return game_state.getGameEnded()
+        return self.game.getGameEnded(board=game_state, player=player)
 
     def self_play(self, model: torch.nn.Module, num_episodes: int):
         """
@@ -211,12 +211,12 @@ class AlphaZeroNano:
                     p=policy
                 )
 
-                game_state, player = game_state.getNextState(
+                game_state, player = self.game.getNextState(
                     game_state,
                     player,
                     action)
 
-            game_result = game_state.getGameEnded()
+            game_result = self.game.getGameEnded(board=game_state, player=player)
             for state, policy in game_states:
                 train_episodes.append((state, policy, game_result))
 
