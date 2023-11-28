@@ -54,7 +54,7 @@ class Node:
 
         return uct_values
 
-    def select_action(self, game, c, possible_actions: list) -> int:
+    def select_action(self, game, c, valid_moves: np.ndarray) -> int:
         """
         The Upper Confidence bound algorithm for Trees (uct) outputs the
         desirability of visiting a certain node. It is calculated taking into
@@ -65,6 +65,7 @@ class Node:
         This function returns the node's child with the highest uct value.
 
         """
+        possible_actions = np.where(valid_moves == 1)[0]
         unexplored_actions = [
             a for a in possible_actions if self.num_visits_s_a[a] == 0
         ]
@@ -149,20 +150,22 @@ def apv_mcts(
     n, _ = game.getBoardSize()
     player = 1  # assumption across this system is we're going to start simulations w/ player 1
     history_array = np.zeros((2 * history_length + 1, n, n))  # hardcoded values for l and m
+    root_node = Node(root_state, game.getActionSize())
     for _ in range(num_iterations):
-        node = Node(root_state, game.getActionSize())
+        node = root_node
         # The purpose of this loop is to get us from our current node to a
         # terminal node or a leaf node so that we can either end the game
         # or continue to expand
         path = []
         print(_)
+        count = 0
         while (len(node.children.keys()) > 0) and not game.getGameEnded(node.state, player=player):
             print(f"count: {count}")
             count+=1
             possible_actions = game.getValidMoves(node.state, player=player)
             if len(possible_actions) > 0:
                 action = node.select_action(
-                    game=game, possible_actions=possible_actions, c=c
+                    game=game, valid_moves=possible_actions, c=c
                 )
                 next_state, player = game.getNextState(
                     board=node.state,
@@ -194,6 +197,7 @@ def apv_mcts(
             # so the model is designed to take in something with dims 8 x 8 x 7
             # this is to include stuff like who the player playing is etc.
             # currently this doesn't work, need to incorporate that
+            print("game not ended cond")
             cannonical_board = game.getCanonicalForm(node.state, player=player)
             history_tensor = torch.tensor(history_array, dtype=torch.float32).unsqueeze(0)
             policy, val = model(history_tensor)
@@ -204,6 +208,7 @@ def apv_mcts(
 
             for action_idx, probability in enumerate(policy):
                 if probability > 0:
+                    print("non-zero prob")
                     next_state = game.getNextState(
                         action=action_idx,
                         board=cannonical_board,
@@ -212,6 +217,7 @@ def apv_mcts(
                     child = Node(next_state, game.getActionSize())
                     child.prior_probability = probability
                     node.children[action_idx] = child
+                    print(node.children)
 
         if len(path) > 0:
             _, value = model(torch.tensor(path[-1][0].state, dtype=torch.float32))
