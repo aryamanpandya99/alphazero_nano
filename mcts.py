@@ -107,9 +107,9 @@ def update_history_frames(history: np.ndarray, new_frame: np.ndarray, m: int, hi
         None: Updates 'history' array in place.
     """
     board_player_1, board_player_2 = split_player_boards(new_frame)
-    history[m*(history_length-1):, :, :] = history[:, :, m:]
+    history[:m*(history_length-1), :,:] = history[m:, :, :]
     new_frames = np.stack([board_player_1, board_player_2], axis=0)
-    history[m*(history_length-1):m*history_length:, :] = new_frames
+    history[m*(history_length-1):,:,:] = new_frames.reshape(history.shape[0], history.shape[1], m)
 
 
 def add_player_information(board_tensor: np.ndarray, current_player: int):
@@ -157,10 +157,8 @@ def apv_mcts(
         # terminal node or a leaf node so that we can either end the game
         # or continue to expand
         path = []
-        print(_)
         count = 0
         while (len(node.children.keys()) > 0) and not game.getGameEnded(node.state, player=player):
-            print(f"count: {count}")
             count+=1
             possible_actions = game.getValidMoves(node.state, player=player)
             if len(possible_actions) > 0:
@@ -185,9 +183,7 @@ def apv_mcts(
                                   new_frame=node.state
                                 )
             history_array = add_player_information(history_array, player)
-            print(f"node: {node}")
             path.append((node, action))
-            print(path)
 
         # expansion phase
         # for our leaf node, expand by adding possible children
@@ -197,7 +193,6 @@ def apv_mcts(
             # so the model is designed to take in something with dims 8 x 8 x 7
             # this is to include stuff like who the player playing is etc.
             # currently this doesn't work, need to incorporate that
-            print("game not ended cond")
             cannonical_board = game.getCanonicalForm(node.state, player=player)
             history_tensor = torch.tensor(history_array, dtype=torch.float32).unsqueeze(0)
             policy, val = model(history_tensor)
@@ -208,7 +203,6 @@ def apv_mcts(
 
             for action_idx, probability in enumerate(policy):
                 if probability > 0:
-                    print("non-zero prob")
                     next_state = game.getNextState(
                         action=action_idx,
                         board=cannonical_board,
@@ -217,7 +211,6 @@ def apv_mcts(
                     child = Node(next_state, game.getActionSize())
                     child.prior_probability = probability
                     node.children[action_idx] = child
-                    print(node.children)
 
         if len(path) > 0:
             _, value = model(torch.tensor(path[-1][0].state, dtype=torch.float32))
