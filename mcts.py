@@ -106,6 +106,8 @@ def update_history_frames(history: np.ndarray, new_frame: np.ndarray, m: int, hi
     Returns:
         None: Updates 'history' array in place.
     """
+
+    # still needs work 
     board_player_1, board_player_2 = split_player_boards(new_frame)
     history[:m*(history_length-1), :,:] = history[m:, :, :]
     new_frames = np.stack([board_player_1, board_player_2], axis=0)
