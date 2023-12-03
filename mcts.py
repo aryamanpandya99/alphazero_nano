@@ -203,7 +203,7 @@ def apv_mcts(
                 break
             input_array = no_history_model_input(board_arr=node.state, 
                                                  current_player=player)
-            path.append((input_array, action))
+            path.append((input_array, node, action))
 
         # expansion phase
         # for our leaf node, expand by adding possible children
@@ -235,7 +235,7 @@ def apv_mcts(
             _, value = model(input_tensor)
 
         # backpropagation phase
-        for node, action in reversed(path):
+        for _, node, action in reversed(path):
             node.num_visits_s += 1
             node.num_visits_s_a[action] += 1
             node.total_value_s_a[action] += value
@@ -244,7 +244,7 @@ def apv_mcts(
             )
             value = -value  # reverse value we alternates between players
 
-    root = path[0][0]
+    root = path[0][1]
     visits = [x ** 1 / temp for x in root.num_visits_s_a]
     sum_visits = float(sum(visits))
     pi = [x / sum_visits for x in visits]

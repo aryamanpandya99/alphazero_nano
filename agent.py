@@ -11,7 +11,7 @@ import torch
 from torch.utils.data import DataLoader, TensorDataset
 
 from Game import Game
-from mcts import apv_mcts
+from mcts import apv_mcts, no_history_model_input
 
 
 class AlphaZeroNano:
@@ -136,6 +136,7 @@ class AlphaZeroNano:
             policy_pred, value_pred = neural_network(x_train)
 
             policy_loss = policy_loss_fn(policy_train, policy_pred)
+            print(f"shape value train: {value_train.shape}, shape value pred: {value_pred.shape}")
             value_loss = value_loss_fn(value_train, value_pred)
             combined_loss = policy_loss + value_loss
 
@@ -156,20 +157,20 @@ class AlphaZeroNano:
         """
         game_state = self.game.getInitBoard()
         player = 1
-
+        stacked_frames = no_history_model_input(game_state, current_player=player)
         while not self.game.getGameEnded(board=game_state, player=player):
             if player == 1:
-                policy, _ = network_a(game_state)
+                policy, _ = network_a(stacked_frames)
             else:
-                policy, _ = network_b(game_state)
+                policy, _ = network_b(stacked_frames)
 
             _, action = torch.max(policy, dim=-1)
-
             game_state, player = self.game.getNextState(
                 game_state,
                 player,
                 action
             )
+            stacked_frames = no_history_model_input(game_state, current_player=player)
 
         if player == -1:
             return self.game.getGameEnded(board=game_state, player=player)
@@ -204,7 +205,7 @@ class AlphaZeroNano:
                     history_length=3
                 )
 
-                game_states.append((game_state, policy))
+                game_states.append((game_state, policy, player))
                 valid_moves = self.game.getValidMoves(game_state, player)
                 ones_indices = np.where(valid_moves == 1)[0]
                 action = np.random.choice(ones_indices)
@@ -214,8 +215,9 @@ class AlphaZeroNano:
                     action)
 
             game_result = self.game.getGameEnded(board=game_state, player=player)
-            for state, policy in game_states:
-                train_episodes.append((state, policy, game_result))
+            for state, policy, player in game_states:
+                stacked_frames = no_history_model_input(state, current_player=player)
+                train_episodes.append((stacked_frames, policy, game_result))
 
         return train_episodes
 
