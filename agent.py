@@ -159,11 +159,16 @@ class AlphaZeroNano:
         player = 1
         stacked_frames = no_history_model_input(game_state, current_player=player)
         while not self.game.getGameEnded(board=game_state, player=player):
+            stacked_tensor = torch.tensor(stacked_frames, dtype = torch.float32).unsqueeze(0)
             if player == 1:
-                policy, _ = network_a(stacked_frames)
+                print(stacked_tensor.shape)
+                policy, _ = network_a(stacked_tensor)
             else:
-                policy, _ = network_b(stacked_frames)
-
+                policy, _ = network_b(stacked_tensor)
+            
+            valid_moves = self.game.getValidMoves(game_state, player)
+            ones_indices = np.where(valid_moves == 1)[0]
+            action = np.random.choice(ones_indices)
             _, action = torch.max(policy, dim=-1)
             game_state, player = self.game.getNextState(
                 game_state,
@@ -232,6 +237,12 @@ class AlphaZeroNano:
 
         Returns:
             dataloader (TensorDataset)
+        
+        Note for future optimization (once debugged):
+        UserWarning:
+        Creating a tensor from a list of numpy.ndarrays is extremely slow.
+        Please consider converting the list to a single numpy.ndarray with numpy.array()
+        before converting to a tensor.
         """
         states, policies, results = zip(*train_data)
         states_tensor = torch.tensor(states, dtype=torch.float32)

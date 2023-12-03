@@ -61,7 +61,7 @@ class OthelloNN(nn.Module):
         )
 
         self.value_head_linear = nn.Sequential(
-            nn.Linear(8, 64), nn.ReLU(), nn.Tanh()
+            nn.Flatten(), nn.Linear(64, 1), nn.ReLU(), nn.Tanh()
         )
 
     def forward(self, state) -> tuple[np.array, int]:
@@ -83,6 +83,6 @@ class OthelloNN(nn.Module):
 
         pi = self.policy_head(s)
         s = self.value_head_conv(s)
-        val = self.value_head_linear(s)
+        val = self.value_head_linear(s).squeeze()
 
         return pi, val
