@@ -130,6 +130,28 @@ def add_player_information(board_tensor: np.ndarray, current_player: int):
     board_tensor[:, :, -1] = player_plane
     return board_tensor
 
+def no_history_model_input(board_arr: np.ndarray, current_player: int) -> np.ndarray: 
+    """
+    Alternative model input generator. In this function, we take in the game
+    board and player and return a stack of boards containing one board per player
+    and one board containing current player info. This is an alternative to the method
+    in the paper where we store some T length running memory.
+
+    Args: 
+        board_arr
+        current_player
+    Returns: 
+        model_input_board
+    """
+    board_player_1, board_player_2 = split_player_boards(board_arr)
+    stacked_board = np.stack((board_player_1, board_player_2), axis = 0)
+    if current_player == 1: 
+        player_board = np.ones(board_arr.shape)
+    else: 
+        player_board = np.zeros(board_arr.shape)
+    model_input_board = np.concatenate((stacked_board, player_board[np.newaxis,...]), axis = 0)
+    return model_input_board
+
 @torch.no_grad()
 def apv_mcts(
         game: Game,
@@ -151,8 +173,8 @@ def apv_mcts(
     """
     n, _ = game.getBoardSize()
     player = 1  # assumption across this system is we're going to start simulations w/ player 1
-    history_array = np.zeros((2 * history_length + 1, n, n))  # hardcoded values for l and m
     root_node = Node(root_state, game.getActionSize())
+    input_array = np.zeros((3, 8, 8))
     for _ in range(num_iterations):
         node = root_node
         # The purpose of this loop is to get us from our current node to a
@@ -179,25 +201,20 @@ def apv_mcts(
                 )
                 print("terminal state")
                 break
-            update_history_frames(history=history_array,
-                                  history_length=history_length,
-                                  m=2,
-                                  new_frame=node.state
-                                )
-            history_array = add_player_information(history_array, player)
-            path.append((node, action))
+            input_array = no_history_model_input(board_arr=node.state, 
+                                                 current_player=player)
+            path.append((input_array, action))
 
         # expansion phase
         # for our leaf node, expand by adding possible children
         # from that game state to node.children
-
+        input_tensor = torch.tensor(input_array, dtype=torch.float32).unsqueeze(0)
         if not game.getGameEnded(node.state, player=player):
             # so the model is designed to take in something with dims 8 x 8 x 7
             # this is to include stuff like who the player playing is etc.
             # currently this doesn't work, need to incorporate that
             cannonical_board = game.getCanonicalForm(node.state, player=player)
-            history_tensor = torch.tensor(history_array, dtype=torch.float32).unsqueeze(0)
-            policy, val = model(history_tensor)
+            policy, _  = model(input_tensor)
             #print(f"value: {val.shape}")
             policy = policy.cpu().detach().numpy().squeeze(0)
             possible_actions = game.getValidMoves(node.state, player=player)
@@ -215,7 +232,7 @@ def apv_mcts(
                     node.children[action_idx] = child
 
         if len(path) > 0:
-            _, value = model(torch.tensor(path[-1][0].state, dtype=torch.float32))
+            _, value = model(input_tensor)
 
         # backpropagation phase
         for node, action in reversed(path):

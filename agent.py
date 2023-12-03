@@ -133,7 +133,7 @@ class AlphaZeroNano:
         )
 
         for x_train, policy_train, value_train in dataloader:
-            policy_pred, value_pred = neural_network.predict(x_train)
+            policy_pred, value_pred = neural_network(x_train)
 
             policy_loss = policy_loss_fn(policy_train, policy_pred)
             value_loss = value_loss_fn(value_train, value_pred)
@@ -159,9 +159,9 @@ class AlphaZeroNano:
 
         while not self.game.getGameEnded(board=game_state, player=player):
             if player == 1:
-                policy, _ = network_a.predict(game_state)
+                policy, _ = network_a(game_state)
             else:
-                policy, _ = network_b.predict(game_state)
+                policy, _ = network_b(game_state)
 
             _, action = torch.max(policy, dim=-1)
 

@@ -27,7 +27,7 @@ class OthelloNN(nn.Module):
         #N x N -> 8 x 8. M = 2, T = 3, L =1 (who's playing)
 
         self.conv1 = nn.Sequential(
-            nn.Conv2d(in_channels=7, out_channels=128, kernel_size=3, padding=1),
+            nn.Conv2d(in_channels=3, out_channels=128, kernel_size=3, padding=1),
             nn.BatchNorm2d(128),
             nn.ReLU(),
         )
@@ -76,7 +76,6 @@ class OthelloNN(nn.Module):
             pi (torch.tensor): policy pi[a|s]
             val (float32): scalar value estimate from input state 
         '''
-
         s = self.conv1(state)
         s = self.conv2(s)
         s = self.conv3(s)
