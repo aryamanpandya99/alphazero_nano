@@ -215,7 +215,7 @@ def apv_mcts(
             cannonical_board = game.getCanonicalForm(node.state, player=player)
             policy, _  = model(input_tensor)
             #print(f"value: {val.shape}")
-            policy = policy.cpu().detach().numpy().squeeze(0)
+            policy = policy.cpu().detach().numpy()
             possible_actions = game.getValidMoves(node.state, player=player)
             policy *= possible_actions
 

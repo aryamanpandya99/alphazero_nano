@@ -85,4 +85,4 @@ class OthelloNN(nn.Module):
         s = self.value_head_conv(s)
         val = self.value_head_linear(s).squeeze()
 
-        return pi, val
+        return pi.squeeze(0), val

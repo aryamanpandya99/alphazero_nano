@@ -136,7 +136,6 @@ class AlphaZeroNano:
             policy_pred, value_pred = neural_network(x_train)
 
             policy_loss = policy_loss_fn(policy_train, policy_pred)
-            print(f"shape value train: {value_train.shape}, shape value pred: {value_pred.shape}")
             value_loss = value_loss_fn(value_train, value_pred)
             combined_loss = policy_loss + value_loss
 
@@ -161,14 +160,15 @@ class AlphaZeroNano:
         while not self.game.getGameEnded(board=game_state, player=player):
             stacked_tensor = torch.tensor(stacked_frames, dtype = torch.float32).unsqueeze(0)
             if player == 1:
-                print(stacked_tensor.shape)
                 policy, _ = network_a(stacked_tensor)
             else:
                 policy, _ = network_b(stacked_tensor)
             
             valid_moves = self.game.getValidMoves(game_state, player)
             ones_indices = np.where(valid_moves == 1)[0]
-            action = np.random.choice(ones_indices)
+            mask = torch.zeros_like(policy.squeeze(), dtype=torch.bool)
+            mask[torch.tensor(ones_indices)] = True
+            policy[~mask] = 0
             _, action = torch.max(policy, dim=-1)
             game_state, player = self.game.getNextState(
                 game_state,
