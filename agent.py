@@ -5,13 +5,12 @@ This file contains the training code and supporting functions
 required to enable training through self play.
 """
 import copy
-
+import logging
+from Game import Game
+from mcts import apv_mcts, no_history_model_input
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, TensorDataset
-
-from Game import Game
-from mcts import apv_mcts, no_history_model_input
 
 
 class AlphaZeroNano:
@@ -56,6 +55,7 @@ class AlphaZeroNano:
         current_network = neural_network
 
         for _ in range(num_epochs):
+            logging.info("Epoch: %s/%s", _, num_epochs)
             train_episodes = self.self_play(
                 model=current_network,
                 num_episodes=num_episodes
@@ -163,7 +163,6 @@ class AlphaZeroNano:
                 policy, _ = network_a(stacked_tensor)
             else:
                 policy, _ = network_b(stacked_tensor)
-            
             valid_moves = self.game.getValidMoves(game_state, player)
             ones_indices = np.where(valid_moves == 1)[0]
             mask = torch.zeros_like(policy.squeeze(), dtype=torch.bool)

@@ -6,11 +6,9 @@ components needed to support it
 
 import logging
 import random
+from Game import Game
 import numpy as np
 import torch
-
-from Game import Game
-
 
 class Node:
     """
@@ -198,7 +196,6 @@ def apv_mcts(
                 logging.info(
                     "Terminal state: no possible actions from %s", (node.state)
                 )
-                print("terminal state")
                 break
             input_array = no_history_model_input(board_arr=node.state, 
                                                  current_player=player)
@@ -209,12 +206,8 @@ def apv_mcts(
         # from that game state to node.children
         input_tensor = torch.tensor(input_array, dtype=torch.float32).unsqueeze(0)
         if not game.getGameEnded(node.state, player=player):
-            # so the model is designed to take in something with dims 8 x 8 x 7
-            # this is to include stuff like who the player playing is etc.
-            # currently this doesn't work, need to incorporate that
             cannonical_board = game.getCanonicalForm(node.state, player=player)
             policy, _  = model(input_tensor)
-            #print(f"value: {val.shape}")
             policy = policy.cpu().detach().numpy()
             possible_actions = game.getValidMoves(node.state, player=player)
             policy *= possible_actions

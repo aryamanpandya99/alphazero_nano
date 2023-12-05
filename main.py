@@ -4,14 +4,19 @@ File contents: Program entry point. Select game, initalize agent, train agent.
 This file will also be used to output plots and monitor training progress. 
 This file will also be used for evaluation and testing. 
 """
-import Game 
+import sys 
+import logging
 from agent import AlphaZeroNano
 from models import OthelloNN
 import torch
-import sys 
 
 sys.path.append("Othello")
 from othello_game import OthelloGame
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | [%(levelname)s] | %(name)s | %(filename)s | %(funcName)s() | line.%(lineno)d | %(message)s"
+)
 
 def main():
     """
