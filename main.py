@@ -22,7 +22,9 @@ def main():
     """
     main
     """
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     neural_network = OthelloNN()
+    neural_network = neural_network.to(device)
     game = OthelloGame(n=8)
     learning_rate = 3e-4
     l2_reg = 1e-3
@@ -32,14 +34,13 @@ def main():
         lr=learning_rate,
         weight_decay=l2_reg
     )
-
-    agent = AlphaZeroNano(optimizer=actor_optimizer,num_simulations=5, game=game, c_uct=0.1)
+    agent = AlphaZeroNano(optimizer=actor_optimizer,num_simulations=25, game=game, c_uct=0.1, device=device)
 
     agent.train(
         train_batch_size=32,
         neural_network=neural_network,
-        num_episodes=5,
-        num_epochs=1000
+        num_episodes=100,
+        num_epochs=100
         )
 
 

@@ -155,7 +155,7 @@ def apv_mcts(
         root_state,
         model: torch.nn.Module(),
         num_iterations: int,
-        history_length: int,
+        device,
         c: float, 
         temp = 1):
     """
@@ -204,7 +204,7 @@ def apv_mcts(
         # expansion phase
         # for our leaf node, expand by adding possible children
         # from that game state to node.children
-        input_tensor = torch.tensor(input_array, dtype=torch.float32).unsqueeze(0)
+        input_tensor = torch.tensor(input_array, dtype=torch.float32).to(device).unsqueeze(0)
         if not game.getGameEnded(node.state, player=player):
             cannonical_board = game.getCanonicalForm(node.state, player=player)
             policy, _  = model(input_tensor)

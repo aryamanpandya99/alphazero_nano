@@ -23,7 +23,8 @@ class AlphaZeroNano:
             num_simulations: int,
             optimizer,
             game: Game,
-            c_uct: float) -> None:
+            c_uct: float, 
+            device) -> None:
 
         self.c_parameter = c_uct
         self.num_simulations = num_simulations
@@ -32,6 +33,7 @@ class AlphaZeroNano:
         # notes: dynamics differences. Each game object instance 
         # is a game instance. Need to figure out how to re-initialize..?
         self.game = game
+        self.device = device
 
     def train(self,
               neural_network: torch.nn.Module,
@@ -52,10 +54,9 @@ class AlphaZeroNano:
         Returns:
             current_network (torch.nn.Module)
         """
+        logging.info("Beginning agent AlphaZeroNano training")
         current_network = neural_network
-
         for _ in range(num_epochs):
-            logging.info("Epoch: %s/%s", _, num_epochs)
             train_episodes = self.self_play(
                 model=current_network,
                 num_episodes=num_episodes
@@ -63,7 +64,7 @@ class AlphaZeroNano:
             # keep a copy of the current network for evaluation
             old_network = copy.deepcopy(current_network)
 
-            self.retrain_nn(
+            policy_loss, value_loss = self.retrain_nn(
                 neural_network=current_network,
                 train_data=train_episodes,
                 train_batch_size=train_batch_size
@@ -74,6 +75,8 @@ class AlphaZeroNano:
                 old_network,
                 10
             )
+
+            logging.info("Epoch: %s/%s value_loss: %s, policy_loss: %s", _, num_epochs, value_loss, policy_loss)
 
         return current_network
 
@@ -131,17 +134,26 @@ class AlphaZeroNano:
         dataloader = self.batch_episodes(
             train_data, batch_size=train_batch_size
         )
-
+        policy_losses_total = 0
+        value_losses_total = 0
         for x_train, policy_train, value_train in dataloader:
             policy_pred, value_pred = neural_network(x_train)
 
             policy_loss = policy_loss_fn(policy_train, policy_pred)
             value_loss = value_loss_fn(value_train, value_pred)
+            policy_losses_total+=policy_loss.item()
+            value_losses_total+=value_loss.item()
             combined_loss = policy_loss + value_loss
 
             self.optimizer.zero_grad()
             combined_loss.backward()
             self.optimizer.step()
+
+
+        policy_loss_avg = policy_losses_total / len(dataloader)
+        value_losses_avg = value_losses_total / len(dataloader)
+
+        return policy_loss_avg, value_losses_avg
 
     def play_game(self,
                   network_a: torch.nn.Module,
@@ -158,7 +170,7 @@ class AlphaZeroNano:
         player = 1
         stacked_frames = no_history_model_input(game_state, current_player=player)
         while not self.game.getGameEnded(board=game_state, player=player):
-            stacked_tensor = torch.tensor(stacked_frames, dtype = torch.float32).unsqueeze(0)
+            stacked_tensor = torch.tensor(stacked_frames, dtype = torch.float32).to(self.device).unsqueeze(0)
             if player == 1:
                 policy, _ = network_a(stacked_tensor)
             else:
@@ -205,8 +217,8 @@ class AlphaZeroNano:
                     root_state=game_state,
                     model=model,
                     num_iterations=self.num_simulations,
-                    c=self.c_parameter,
-                    history_length=3
+                    c=self.c_parameter, 
+                    device=self.device
                 )
 
                 game_states.append((game_state, policy, player))
@@ -244,9 +256,9 @@ class AlphaZeroNano:
         before converting to a tensor.
         """
         states, policies, results = zip(*train_data)
-        states_tensor = torch.tensor(np.array(states), dtype=torch.float32)
-        policies_tensor = torch.tensor(np.array(policies), dtype=torch.float32)
-        results_tensor = torch.tensor(np.array(results), dtype=torch.float32)
+        states_tensor = torch.tensor(np.array(states), dtype=torch.float32).to(self.device)
+        policies_tensor = torch.tensor(np.array(policies), dtype=torch.float32).to(self.device)
+        results_tensor = torch.tensor(np.array(results), dtype=torch.float32).to(self.device)
 
         dataset = TensorDataset(states_tensor, policies_tensor, results_tensor)
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
