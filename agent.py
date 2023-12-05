@@ -244,9 +244,9 @@ class AlphaZeroNano:
         before converting to a tensor.
         """
         states, policies, results = zip(*train_data)
-        states_tensor = torch.tensor(states, dtype=torch.float32)
-        policies_tensor = torch.tensor(policies, dtype=torch.float32)
-        results_tensor = torch.tensor(results, dtype=torch.float32)
+        states_tensor = torch.tensor(np.array(states), dtype=torch.float32)
+        policies_tensor = torch.tensor(np.array(policies), dtype=torch.float32)
+        results_tensor = torch.tensor(np.array(results), dtype=torch.float32)
 
         dataset = TensorDataset(states_tensor, policies_tensor, results_tensor)
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
