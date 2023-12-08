@@ -6,7 +6,6 @@ components needed to support it
 
 import logging
 import random
-from Game import Game
 import numpy as np
 import torch
 
@@ -19,6 +18,7 @@ class MCTS:
         self.prior_probability = {}
         self.num_visits_s_a = {}
         self.num_visits_s = {}
+        self.is_terminal_s = {}
 
     def uct(self, s, c: float) -> list:
         """
@@ -158,7 +158,6 @@ class MCTS:
         backpropagate that estimated value.
 
         """
-        player = 1  # assumption across this system is we're going to start simulations w/ player 1
         
         input_array = np.zeros((3, 8, 8))
         for _ in range(num_iterations):
@@ -166,6 +165,7 @@ class MCTS:
             # terminal node or a leaf node so that we can either end the game
             # or continue to expand
             state = canonical_root_state
+            player = 1
             state_string = self.game.stringRepresentation(state)
             path = []
             count = 0
@@ -180,6 +180,7 @@ class MCTS:
                         board=state,
                         player=player,
                         action=action)
+                    
 
                 else:
                     logging.info(
@@ -199,8 +200,9 @@ class MCTS:
             # for our leaf node, expand by adding possible children
             # from that self.game state to node.children
             input_tensor = torch.tensor(input_array, dtype=torch.float32).to(device).unsqueeze(0)
-            if not self.game.getGameEnded(state, player=player) and state_string not in self.prior_probability:
-                policy, _  = model(input_tensor)
+            game_ended = self.game.getGameEnded(state, player=player)
+            if not game_ended :
+                policy, value  = model(input_tensor)
                 policy = policy.cpu().detach().numpy()
                 possible_actions = self.game.getValidMoves(state, player=player)
                 policy *= possible_actions
@@ -210,9 +212,10 @@ class MCTS:
                 else:
                     self.prior_probability[state_string] = self.prior_probability[state_string] + possible_actions
                     self.prior_probability[state_string] /= np.sum(self.prior_probability[state_string])
+            
+            else:
+                value = game_ended
 
-            if len(path) > 0:
-                _, value = model(input_tensor)
 
             # backpropagation phase
             for _, state_string, action in reversed(path):
@@ -233,8 +236,8 @@ class MCTS:
                 value = -value  # reverse value we alternates between players
 
         root = path[0][1]
-        visits = [x ** 1 / temp for x in self.num_visits_s_a[root]]
+        visits = [x ** (1 / temp) for x in self.num_visits_s_a[root]]
         sum_visits = float(sum(visits))
         pi = [x / sum_visits for x in visits]
-
+        # print(pi)
         return pi

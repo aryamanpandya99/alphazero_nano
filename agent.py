@@ -68,6 +68,8 @@ class AlphaZeroNano:
                 train_data=train_episodes,
                 train_batch_size=train_batch_size
             )
+            cond = (old_network == current_network)
+            print(f"old and new networks are the same: {cond}")
             # note: figure out if the following assignment makes sense
             current_network = self.evaluate_networks(
                 current_network,
@@ -80,17 +82,17 @@ class AlphaZeroNano:
         return current_network
 
     def evaluate_networks(self,
-                          network_a: torch.nn.Module,
+                          curr_network: torch.nn.Module,
                           network_b: torch.nn.Module,
                           num_games: int,
-                          threshold=0.6) -> torch.nn.Module:
+                          threshold=0.5) -> torch.nn.Module:
         """
         Evaluate networks. Makes two networks play a specified 
         number of games against one another and returns the second
         network if it beats the first beyond some threshold %
 
         Args:
-            network_a (torch.nn.Module) 
+            curr_network (torch.nn.Module) 
             network_b (torch.nn.Module)
             num_games (int)
             threshold (float)
@@ -98,18 +100,22 @@ class AlphaZeroNano:
         Returns:
             network (torch.nn.Module)
         """
-        network_a_wins = 0
+        curr_network_wins = 0
 
         for _ in range(num_games):
-            network_a_result = self.play_game(network_a, network_b)
-            if network_a_result > 0:
-                network_a_wins += 1
+            
+            curr_network_result = self.play_game(curr_network, network_b)
+            if curr_network_result > 0:
+                curr_network_wins += 1
 
-        win_rate = network_a_wins / num_games
-
+        win_rate = curr_network_wins / num_games
+        # if network a wins most games, return network a
         if win_rate > threshold:
-            return network_a
+            
+            return curr_network
 
+        # else return network b
+        print("new network wins")
         return network_b
 
     def retrain_nn(self,
@@ -167,6 +173,7 @@ class AlphaZeroNano:
         """
         game_state = self.game.getInitBoard()
         player = 1
+        game_state = self.game.getCanonicalForm(game_state, player)
         stacked_frames = self.mcts.no_history_model_input(game_state, current_player=player)
         while not self.game.getGameEnded(board=game_state, player=player):
             stacked_tensor = torch.tensor(stacked_frames, dtype = torch.float32).to(self.device).unsqueeze(0)
@@ -179,16 +186,18 @@ class AlphaZeroNano:
             mask = torch.zeros_like(policy.squeeze(), dtype=torch.bool)
             mask[torch.tensor(ones_indices)] = True
             policy[~mask] = 0
-            _, action = torch.max(policy, dim=-1)
+            # print(policy)
+            action = torch.argmax(policy, dim=-1)
             game_state, player = self.game.getNextState(
                 game_state,
                 player,
                 action
             )
+            game_state = self.game.getCanonicalForm(game_state, player)
             stacked_frames = self.mcts.no_history_model_input(game_state, current_player=player)
 
         if player == -1:
-            return self.game.getGameEnded(board=game_state, player=player)
+            return -self.game.getGameEnded(board=game_state, player=player)
 
         return self.game.getGameEnded(board=game_state, player=player)
 
@@ -210,8 +219,8 @@ class AlphaZeroNano:
             game_states = []
             game_state = self.game.getInitBoard()
             player = 1
+            game_state = self.game.getCanonicalForm(game_state, player=player)
             while not self.game.getGameEnded(board=game_state, player=player):
-                game_state = self.game.getCanonicalForm(game_state, player=player)
                 policy = self.mcts.apv_mcts(
                     canonical_root_state=game_state,
                     model=model,
@@ -219,7 +228,6 @@ class AlphaZeroNano:
                     c=self.c_parameter,
                     device=self.device
                 )
-
                 game_states.append((game_state, policy, player))
                 valid_moves = self.game.getValidMoves(game_state, player)
                 ones_indices = np.where(valid_moves == 1)[0]
@@ -228,6 +236,7 @@ class AlphaZeroNano:
                     game_state,
                     player,
                     action)
+                game_state = self.game.getCanonicalForm(game_state, player=player)
 
             game_result = self.game.getGameEnded(board=game_state, player=player)
             for state, policy, player in game_states:
