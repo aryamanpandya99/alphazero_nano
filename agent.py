@@ -7,7 +7,7 @@ required to enable training through self play.
 import copy
 import logging
 from Game import Game
-from mcts import apv_mcts, no_history_model_input
+from mcts import MCTS
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, TensorDataset
@@ -23,17 +23,16 @@ class AlphaZeroNano:
             num_simulations: int,
             optimizer,
             game: Game,
-            c_uct: float, 
+            c_uct: float,
+            mcts: MCTS,
             device) -> None:
 
         self.c_parameter = c_uct
         self.num_simulations = num_simulations
         self.optimizer = optimizer
-
-        # notes: dynamics differences. Each game object instance 
-        # is a game instance. Need to figure out how to re-initialize..?
         self.game = game
         self.device = device
+        self.mcts = mcts
 
     def train(self,
               neural_network: torch.nn.Module,
@@ -168,7 +167,7 @@ class AlphaZeroNano:
         """
         game_state = self.game.getInitBoard()
         player = 1
-        stacked_frames = no_history_model_input(game_state, current_player=player)
+        stacked_frames = self.mcts.no_history_model_input(game_state, current_player=player)
         while not self.game.getGameEnded(board=game_state, player=player):
             stacked_tensor = torch.tensor(stacked_frames, dtype = torch.float32).to(self.device).unsqueeze(0)
             if player == 1:
@@ -186,7 +185,7 @@ class AlphaZeroNano:
                 player,
                 action
             )
-            stacked_frames = no_history_model_input(game_state, current_player=player)
+            stacked_frames = self.mcts.no_history_model_input(game_state, current_player=player)
 
         if player == -1:
             return self.game.getGameEnded(board=game_state, player=player)
@@ -212,12 +211,13 @@ class AlphaZeroNano:
             game_state = self.game.getInitBoard()
             player = 1
             while not self.game.getGameEnded(board=game_state, player=player):
-                policy = apv_mcts(
+                game_state = self.game.getCanonicalForm(game_state, player=player)
+                policy = self.mcts.apv_mcts(
                     game=self.game,
-                    root_state=game_state,
+                    canonical_root_state=game_state,
                     model=model,
                     num_iterations=self.num_simulations,
-                    c=self.c_parameter, 
+                    c=self.c_parameter,
                     device=self.device
                 )
 
@@ -232,7 +232,7 @@ class AlphaZeroNano:
 
             game_result = self.game.getGameEnded(board=game_state, player=player)
             for state, policy, player in game_states:
-                stacked_frames = no_history_model_input(state, current_player=player)
+                stacked_frames = self.mcts.no_history_model_input(state, current_player=player)
                 train_episodes.append((stacked_frames, policy, game_result))
 
         return train_episodes

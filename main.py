@@ -8,6 +8,7 @@ import sys
 import logging
 from agent import AlphaZeroNano
 from models import OthelloNN
+from mcts import MCTS
 import torch
 
 sys.path.append("Othello")
@@ -34,7 +35,7 @@ def main():
         lr=learning_rate,
         weight_decay=l2_reg
     )
-    agent = AlphaZeroNano(optimizer=actor_optimizer,num_simulations=25, game=game, c_uct=0.1, device=device)
+    agent = AlphaZeroNano(optimizer=actor_optimizer,num_simulations=25, game=game, c_uct=0.1, device=device, mcts=MCTS(game))
 
     agent.train(
         train_batch_size=32,
