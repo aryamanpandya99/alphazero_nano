@@ -20,26 +20,26 @@ class MCTS:
         self.num_visits_s_a = {}
         self.num_visits_s = {}
 
-    def uct(self, game, c: float) -> list:
+    def uct(self, s, c: float) -> list:
         """
         ENTER Docstring
         """
         # Create an array for num_visits_s_a values
         num_visits_s_a_array = np.array(
-            [self.num_visits_s_a[a] for a in range(game.getActionSize())]
+            [self.num_visits_s_a[s][a] for a in range(self.game.getActionSize())]
         )
 
         # U (s, a) = C(s)P (s, a) N (s)/(1 + N (s, a))
         # need to make sure that this will work as an array
         uct_values = (
             c
-            * self.prior_probability
-            * (np.sqrt(self.num_visits_s) / (1 + num_visits_s_a_array))
+            * self.prior_probability[s]
+            * (np.sqrt(self.num_visits_s[s]) / (1 + num_visits_s_a_array))
         )
 
         return uct_values
 
-    def select_action(self, game, state_string, c, valid_moves: np.ndarray) -> int:
+    def select_action(self, state_string, c, valid_moves: np.ndarray) -> int:
         """
         The Upper Confidence bound algorithm for Trees (uct) outputs the
         desirability of visiting a certain node. It is calculated taking into
@@ -63,9 +63,9 @@ class MCTS:
             return random.choice(unexplored_actions)
 
         # Otherwise, choose child with the highest uct value
-        action_uct = self.uct(game, c=c)
+        action_uct = self.uct(state_string, c=c)
 
-        return np.max(action_uct)
+        return np.argmax(action_uct)
 
     def split_player_boards(self, board: np.ndarray) -> tuple[np.ndarray, np.ndarray]: 
         """
@@ -142,7 +142,6 @@ class MCTS:
     @torch.no_grad()
     def apv_mcts(
             self,
-            game: Game,
             canonical_root_state,
             model: torch.nn.Module(),
             num_iterations: int,
@@ -160,23 +159,24 @@ class MCTS:
 
         """
         player = 1  # assumption across this system is we're going to start simulations w/ player 1
-        state = canonical_root_state
-        state_string = game.stringRepresentation(state)
+        
         input_array = np.zeros((3, 8, 8))
-        print(num_iterations)
         for _ in range(num_iterations):
             # The purpose of this loop is to get us from our current node to a
             # terminal node or a leaf node so that we can either end the game
             # or continue to expand
+            state = canonical_root_state
+            state_string = self.game.stringRepresentation(state)
             path = []
-            while (state_string in self.prior_probability) and not game.getGameEnded(state, player=player):
-                print("entered loop")
-                possible_actions = game.getValidMoves(state, player=player)
+            count = 0
+            while (state_string in self.prior_probability) and not self.game.getGameEnded(state, player=player):
+                count+=1
+                possible_actions = self.game.getValidMoves(state, player=player)
                 if len(possible_actions) > 0:
                     action = self.select_action(
-                        game=game, valid_moves=possible_actions, c=c, state_string=state_string
+                        valid_moves=possible_actions, c=c, state_string=state_string
                     )
-                    next_state, player = game.getNextState(
+                    next_state, player = self.game.getNextState(
                         board=state,
                         player=player,
                         action=action)
@@ -192,18 +192,17 @@ class MCTS:
                 input_array = self.no_history_model_input(board_arr=state,
                                                     current_player=player)
                 path.append((input_array, state_string, action))
-                next_state = game.getCanonicalForm(next_state, player=player)
+                next_state = self.game.getCanonicalForm(next_state, player=player)
                 state = next_state
-                state_string = game.stringRepresentation(state)
-
+                state_string = self.game.stringRepresentation(state)
             # expansion phase
             # for our leaf node, expand by adding possible children
-            # from that game state to node.children
+            # from that self.game state to node.children
             input_tensor = torch.tensor(input_array, dtype=torch.float32).to(device).unsqueeze(0)
-            if not game.getGameEnded(state, player=player) and state_string not in self.prior_probability:
+            if not self.game.getGameEnded(state, player=player) and state_string not in self.prior_probability:
                 policy, _  = model(input_tensor)
                 policy = policy.cpu().detach().numpy()
-                possible_actions = game.getValidMoves(state, player=player)
+                possible_actions = self.game.getValidMoves(state, player=player)
                 policy *= possible_actions
                 self.prior_probability[state_string] = policy
                 if np.sum(self.prior_probability[state_string]) > 0:
@@ -221,9 +220,9 @@ class MCTS:
                     self.num_visits_s[state_string] += 1
                 else:
                     self.num_visits_s[state_string] = 1
-                    self.num_visits_s_a[state_string] = [0]*game.getActionSize()
-                    self.total_value_s_a[state_string] = [0]*game.getActionSize()
-                    self.q_s_a[state_string] = [0]*game.getActionSize()
+                    self.num_visits_s_a[state_string] = [0]*self.game.getActionSize()
+                    self.total_value_s_a[state_string] = [0]*self.game.getActionSize()
+                    self.q_s_a[state_string] = [0]*self.game.getActionSize()
 
                 self.num_visits_s_a[state_string][action] += 1
                 self.total_value_s_a[state_string][action] += value
@@ -232,7 +231,7 @@ class MCTS:
                 )
 
                 value = -value  # reverse value we alternates between players
-        print(path)
+
         root = path[0][1]
         visits = [x ** 1 / temp for x in self.num_visits_s_a[root]]
         sum_visits = float(sum(visits))

@@ -213,7 +213,6 @@ class AlphaZeroNano:
             while not self.game.getGameEnded(board=game_state, player=player):
                 game_state = self.game.getCanonicalForm(game_state, player=player)
                 policy = self.mcts.apv_mcts(
-                    game=self.game,
                     canonical_root_state=game_state,
                     model=model,
                     num_iterations=self.num_simulations,
