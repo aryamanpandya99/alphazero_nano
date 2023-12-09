@@ -237,7 +237,7 @@ class MCTS:
 
         root = path[0][1]
         visits = [x ** (1 / temp) for x in self.num_visits_s_a[root]]
+        q_vals = [x ** (1 / temp) for x in self.q_s_a[root]]
         sum_visits = float(sum(visits))
         pi = [x / sum_visits for x in visits]
-        # print(pi)
-        return pi
+        return self.uct(root, c)

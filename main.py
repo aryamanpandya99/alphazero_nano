@@ -35,12 +35,12 @@ def main():
         lr=learning_rate,
         weight_decay=l2_reg
     )
-    agent = AlphaZeroNano(optimizer=actor_optimizer,num_simulations=25, game=game, c_uct=4, device=device, mcts=MCTS(game))
+    agent = AlphaZeroNano(optimizer=actor_optimizer,num_simulations=50, game=game, c_uct=1, device=device, mcts=MCTS(game))
 
     agent.train(
         train_batch_size=32,
         neural_network=neural_network,
-        num_episodes=1000,
+        num_episodes=100,
         num_epochs=100
         )
 

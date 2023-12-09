@@ -68,8 +68,6 @@ class AlphaZeroNano:
                 train_data=train_episodes,
                 train_batch_size=train_batch_size
             )
-            cond = (old_network == current_network)
-            print(f"old and new networks are the same: {cond}")
             # note: figure out if the following assignment makes sense
             current_network = self.evaluate_networks(
                 current_network,
@@ -80,6 +78,10 @@ class AlphaZeroNano:
             logging.info("Epoch: %s/%s value_loss: %s, policy_loss: %s", _, num_epochs, value_loss, policy_loss)
 
         return current_network
+    
+    def eval_network(self, network): 
+        player_a = network
+        return player_a
 
     def evaluate_networks(self,
                           curr_network: torch.nn.Module,
@@ -103,7 +105,7 @@ class AlphaZeroNano:
         curr_network_wins = 0
 
         for _ in range(num_games):
-            
+            print(f"game number: {_}")
             curr_network_result = self.play_game(curr_network, network_b)
             if curr_network_result > 0:
                 curr_network_wins += 1
@@ -115,7 +117,7 @@ class AlphaZeroNano:
             return curr_network
 
         # else return network b
-        print("new network wins")
+        print(f"new network wins with win rate: {1 - win_rate}")
         return network_b
 
     def retrain_nn(self,
@@ -176,11 +178,16 @@ class AlphaZeroNano:
         game_state = self.game.getCanonicalForm(game_state, player)
         stacked_frames = self.mcts.no_history_model_input(game_state, current_player=player)
         while not self.game.getGameEnded(board=game_state, player=player):
+            print(f"stacked frames: \n{stacked_frames}")
             stacked_tensor = torch.tensor(stacked_frames, dtype = torch.float32).to(self.device).unsqueeze(0)
+            #print(f"Player {player}, state: \n{game_state}")
+            print(f"player: {player}")
             if player == 1:
                 policy, _ = network_a(stacked_tensor)
+                print(f"network_a policy: {policy}")
             else:
                 policy, _ = network_b(stacked_tensor)
+                print(f"network_b policy: {policy}")
             valid_moves = self.game.getValidMoves(game_state, player)
             ones_indices = np.where(valid_moves == 1)[0]
             mask = torch.zeros_like(policy.squeeze(), dtype=torch.bool)
@@ -194,11 +201,13 @@ class AlphaZeroNano:
                 action
             )
             game_state = self.game.getCanonicalForm(game_state, player)
+            #print(f"Player after move {player}, state: \n{game_state}")
             stacked_frames = self.mcts.no_history_model_input(game_state, current_player=player)
 
         if player == -1:
+            print(f"player: {player}, result: {self.game.getGameEnded(game_state, player)}")
             return -self.game.getGameEnded(board=game_state, player=player)
-
+        print(f"player: {player}, result: {self.game.getGameEnded(game_state, player)}")
         return self.game.getGameEnded(board=game_state, player=player)
 
     def self_play(self, model: torch.nn.Module, num_episodes: int):
@@ -220,18 +229,21 @@ class AlphaZeroNano:
             game_state = self.game.getInitBoard()
             player = 1
             game_state = self.game.getCanonicalForm(game_state, player=player)
+            self.mcts = MCTS(self.game)
             while not self.game.getGameEnded(board=game_state, player=player):
-                policy = self.mcts.apv_mcts(
+                pi = self.mcts.apv_mcts(
                     canonical_root_state=game_state,
                     model=model,
                     num_iterations=self.num_simulations,
                     c=self.c_parameter,
                     device=self.device
                 )
-                game_states.append((game_state, policy, player))
+                game_states.append((game_state, pi, player))
                 valid_moves = self.game.getValidMoves(game_state, player)
-                ones_indices = np.where(valid_moves == 1)[0]
-                action = np.random.choice(ones_indices)
+                pi *= valid_moves
+                sum_pi = float(sum(pi))
+                pi = pi / sum_pi
+                action = np.random.choice(len(pi), p=pi)
                 game_state, player = self.game.getNextState(
                     game_state,
                     player,
@@ -239,9 +251,9 @@ class AlphaZeroNano:
                 game_state = self.game.getCanonicalForm(game_state, player=player)
 
             game_result = self.game.getGameEnded(board=game_state, player=player)
-            for state, policy, player in game_states:
+            for state, pi, player in game_states:
                 stacked_frames = self.mcts.no_history_model_input(state, current_player=player)
-                train_episodes.append((stacked_frames, policy, game_result))
+                train_episodes.append((stacked_frames, pi, game_result))
 
         return train_episodes
 
