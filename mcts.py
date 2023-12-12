@@ -73,7 +73,7 @@ class MCTS:
         """
         player_a = np.maximum(board, 0)
         player_b = board.copy()
-        player_b[player_b < 0] = 1
+        player_b = -1 * np.minimum(player_b, 0)
 
         return player_a, player_b
 
@@ -193,6 +193,7 @@ class MCTS:
                 input_array = self.no_history_model_input(board_arr=state,
                                                     current_player=player)
                 path.append((input_array, state_string, action))
+                #print(f'Player: {-player}, state: \n{state}, action: {action}, next_state:\n{next_state}')
                 next_state = self.game.getCanonicalForm(next_state, player=player)
                 state = next_state
                 state_string = self.game.stringRepresentation(state)
@@ -202,6 +203,7 @@ class MCTS:
             input_tensor = torch.tensor(input_array, dtype=torch.float32).to(device).unsqueeze(0)
             game_ended = self.game.getGameEnded(state, player=player)
             if not game_ended :
+                model.eval()
                 policy, value  = model(input_tensor)
                 policy = policy.cpu().detach().numpy()
                 possible_actions = self.game.getValidMoves(state, player=player)
@@ -216,7 +218,7 @@ class MCTS:
             else:
                 value = game_ended
 
-
+            #print(f"value: {value}")
             # backpropagation phase
             for _, state_string, action in reversed(path):
                 if state_string in self.num_visits_s:

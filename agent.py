@@ -62,12 +62,17 @@ class AlphaZeroNano:
             )
             # keep a copy of the current network for evaluation
             old_network = copy.deepcopy(current_network)
-
+            state_old = current_network.state_dict().__str__()
+            print(f"old network params: {old_network.parameters()}")
             policy_loss, value_loss = self.retrain_nn(
                 neural_network=current_network,
                 train_data=train_episodes,
                 train_batch_size=train_batch_size
             )
+            state_curr = current_network.state_dict().__str__()
+            print(f"curr: {current_network.parameters()}")
+            if state_curr == state_old:
+                print("network not updating")
             # note: figure out if the following assignment makes sense
             current_network = self.evaluate_networks(
                 current_network,
@@ -174,20 +179,21 @@ class AlphaZeroNano:
             result (bool)
         """
         game_state = self.game.getInitBoard()
-        player = 1
+        player = np.random.choice([-1,1])
+        print(f"starting player: {player}")
         game_state = self.game.getCanonicalForm(game_state, player)
         stacked_frames = self.mcts.no_history_model_input(game_state, current_player=player)
         while not self.game.getGameEnded(board=game_state, player=player):
-            print(f"stacked frames: \n{stacked_frames}")
+           # print(f"stacked frames: \n{stacked_frames}")
             stacked_tensor = torch.tensor(stacked_frames, dtype = torch.float32).to(self.device).unsqueeze(0)
-            #print(f"Player {player}, state: \n{game_state}")
-            print(f"player: {player}")
+            print(f"Player {player}, state: \n{game_state}")
+            #print(f"player: {player}")
             if player == 1:
                 policy, _ = network_a(stacked_tensor)
-                print(f"network_a policy: {policy}")
+                #print(f"network_a policy: {policy}")
             else:
                 policy, _ = network_b(stacked_tensor)
-                print(f"network_b policy: {policy}")
+                #print(f"network_b policy: {policy}")
             valid_moves = self.game.getValidMoves(game_state, player)
             ones_indices = np.where(valid_moves == 1)[0]
             mask = torch.zeros_like(policy.squeeze(), dtype=torch.bool)
@@ -223,13 +229,12 @@ class AlphaZeroNano:
             episodes (list)
         """
         train_episodes = []
-
         for _ in range(num_episodes):
+            self.mcts = MCTS(self.game)
             game_states = []
             game_state = self.game.getInitBoard()
             player = 1
             game_state = self.game.getCanonicalForm(game_state, player=player)
-            self.mcts = MCTS(self.game)
             while not self.game.getGameEnded(board=game_state, player=player):
                 pi = self.mcts.apv_mcts(
                     canonical_root_state=game_state,
@@ -251,8 +256,13 @@ class AlphaZeroNano:
                 game_state = self.game.getCanonicalForm(game_state, player=player)
 
             game_result = self.game.getGameEnded(board=game_state, player=player)
+            last_player = player
+            #print(f"last_player: {last_player}")
             for state, pi, player in game_states:
                 stacked_frames = self.mcts.no_history_model_input(state, current_player=player)
+                #print(f"player: {player}, last_player = {last_player}")
+                if player != last_player:
+                    train_episodes.append((stacked_frames, pi, -game_result))
                 train_episodes.append((stacked_frames, pi, game_result))
 
         return train_episodes

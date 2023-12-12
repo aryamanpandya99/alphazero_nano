@@ -6,6 +6,7 @@ and outputs expected value
 
 from torch import nn
 import numpy as np
+import torch.nn.functional as F
 
 
 class OthelloNN(nn.Module):
@@ -37,31 +38,37 @@ class OthelloNN(nn.Module):
             nn.ReLU(),
         )
         self.conv3 = nn.Sequential(
-            nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3, padding=1),
+            nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3),
             nn.BatchNorm2d(128),
             nn.ReLU(),
         )
         self.conv4 = nn.Sequential(
-            nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3, padding=1),
+            nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3),
             nn.BatchNorm2d(128),
+            nn.ReLU(),
+        )
+
+        self.fc1 = nn.Sequential(
+            nn.Linear(2048, 1024),
+            nn.BatchNorm1d(1024),
+            nn.ReLU(),
+        )
+
+        self.fc2 = nn.Sequential(
+            nn.Linear(1024, 512),
+            nn.BatchNorm1d(512),
             nn.ReLU(),
         )
 
 
         self.policy_head = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(128 * 8 * 8, 65),  # Flatten the conv output and connect to a Linear layer
+            nn.Linear(512, 65),  # Flatten the conv output and connect to a Linear layer
             nn.Softmax(dim=1)
         )
 
-        self.value_head_conv = nn.Sequential(
-            nn.Conv2d(in_channels=128, out_channels=1, kernel_size=1),
-            nn.BatchNorm2d(1),
-            nn.ReLU(),
-        )
-
-        self.value_head_linear = nn.Sequential(
-            nn.Flatten(), nn.Linear(64, 1), nn.ReLU(), nn.Tanh()
+        self.value_head = nn.Sequential(
+            nn.Flatten(), nn.Linear(512, 1), nn.ReLU(), nn.Tanh()
         )
 
     def forward(self, state) -> tuple[np.array, int]:
@@ -80,9 +87,11 @@ class OthelloNN(nn.Module):
         s = self.conv2(s)
         s = self.conv3(s)
         s = self.conv4(s)
+        s = s.view(-1, 2048)
+        s = F.dropout(self.fc1(s))
+        s = F.dropout(self.fc2(s))
 
         pi = self.policy_head(s)
-        s = self.value_head_conv(s)
-        val = self.value_head_linear(s).squeeze()
+        val = self.value_head(s).squeeze()
 
         return pi.squeeze(0), val
