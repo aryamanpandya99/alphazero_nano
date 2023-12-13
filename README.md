@@ -16,9 +16,15 @@ The project structure is as follows:
 ├── mcts.py               # Monte Carlo Tree Search and supporting functions
 ├── models.py             # Convolutional neural network for board state evaluation
 └── README.md             # Documentation of the project
-
 ```
+
+## Requirements
+
+To successfully run and develop the AlphaZeroNano project, you'll need the following libraries:
+
+- `torch`
+- `numpy`
 
 ## Acknowledgments
 
-Inspired by the groundbreaking work on AlphaZero by DeepMind, This project serves as an educational tool to understand the underlying principles and mechanisms in a simplified context
+Inspired by the groundbreaking work on AlphaZero by DeepMind, this project serves as an educational tool to understand the underlying principles and mechanisms in a simplified context.
