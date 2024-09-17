@@ -1,10 +1,13 @@
 from __future__ import print_function
+
 import sys
 
 sys.path.append("..")
-from Game import Game
-from .TicTacToeLogic import Board
 import numpy as np
+
+from Game import Game
+
+from .TicTacToeLogic import Board
 
 """
 Game class implementation for the game of TicTacToe.
@@ -79,7 +82,7 @@ class TicTacToeGame(Game):
 
     def getSymmetries(self, board, pi):
         # mirror, rotational
-        assert len(pi) == self.n ** 2 + 1  # 1 for pass
+        assert len(pi) == self.n**2 + 1  # 1 for pass
         pi_board = np.reshape(pi[:-1], (self.n, self.n))
         l = []
 

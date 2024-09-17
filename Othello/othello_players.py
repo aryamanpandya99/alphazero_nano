@@ -35,7 +35,7 @@ class HumanOthelloPlayer:
                         and (0 <= y)
                         and (y < self.game.n)
                     ) or ((x == self.game.n) and (y == 0)):
-                        a = self.game.n * x + y if x != -1 else self.game.n ** 2
+                        a = self.game.n * x + y if x != -1 else self.game.n**2
                         if valid[a]:
                             break
                 except ValueError:

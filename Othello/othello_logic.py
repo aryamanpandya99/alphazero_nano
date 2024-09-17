@@ -128,7 +128,7 @@ class Board:
             self[x][y] = color
 
     def _discover_move(self, origin, direction):
-        """ Returns the endpoint for a legal move, starting at the given origin,
+        """Returns the endpoint for a legal move, starting at the given origin,
         moving by the given increment."""
         x, y = origin
         color = self[x][y]
@@ -148,8 +148,8 @@ class Board:
                 flips.append((x, y))
 
     def _get_flips(self, origin, direction, color):
-        """ Gets the list of flips for a vertex and direction to use with the
-        execute_move function """
+        """Gets the list of flips for a vertex and direction to use with the
+        execute_move function"""
         # initialize variables
         flips = [origin]
 
@@ -168,7 +168,7 @@ class Board:
     @staticmethod
     def _increment_move(move, direction, n):
         # print(move)
-        """ Generator expression for incrementing moves """
+        """Generator expression for incrementing moves"""
         move = list(map(sum, zip(move, direction)))
         # move = (move[0]+direction[0], move[1]+direction[1])
         while all(map(lambda x: 0 <= x < n, move)):

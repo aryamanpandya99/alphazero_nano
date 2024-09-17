@@ -1,10 +1,12 @@
 from __future__ import print_function
+
 import sys
 
 sys.path.append("..")
-from Game import Game
-from othello_logic import Board
 import numpy as np
+from othello_logic import Board
+
+from Game import Game
 
 
 class OthelloGame(Game):
@@ -73,7 +75,7 @@ class OthelloGame(Game):
 
     def getSymmetries(self, board, pi):
         # mirror, rotational
-        assert len(pi) == self.n ** 2 + 1  # 1 for pass
+        assert len(pi) == self.n**2 + 1  # 1 for pass
         pi_board = np.reshape(pi[:-1], (self.n, self.n))
         l = []
 

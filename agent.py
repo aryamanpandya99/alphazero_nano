@@ -4,13 +4,16 @@ File contents: Implementation of our AlphaZero Nano agent.
 This file contains the training code and supporting functions
 required to enable training through self play.
 """
+
 import copy
 import logging
-from Game import Game
-from mcts import MCTS
+
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, TensorDataset
+
+from Game import Game
+from mcts import MCTS
 
 
 class AlphaZeroNano:
@@ -19,13 +22,14 @@ class AlphaZeroNano:
     """
 
     def __init__(
-            self,
-            num_simulations: int,
-            optimizer,
-            game: Game,
-            c_uct: float,
-            mcts: MCTS,
-            device) -> None:
+        self,
+        num_simulations: int,
+        optimizer,
+        game: Game,
+        c_uct: float,
+        mcts: MCTS,
+        device,
+    ) -> None:
 
         self.c_parameter = c_uct
         self.num_simulations = num_simulations
@@ -34,18 +38,20 @@ class AlphaZeroNano:
         self.device = device
         self.mcts = mcts
 
-    def train(self,
-              neural_network: torch.nn.Module,
-              train_batch_size: int,
-              num_epochs: int,
-              num_episodes: int) -> torch.nn.Module:
+    def train(
+        self,
+        neural_network: torch.nn.Module,
+        train_batch_size: int,
+        num_epochs: int,
+        num_episodes: int,
+    ) -> torch.nn.Module:
         """
-        Main agent trainer. Combines self play with MCTS and 
-        network retraining based on this experience to develop 
+        Main agent trainer. Combines self play with MCTS and
+        network retraining based on this experience to develop
         our agent. Returns trained neural network.
 
         Args:
-            neural_network (torch.nn.Module) 
+            neural_network (torch.nn.Module)
             train_batch_size (int)
             num_epochs (int)
             num_episodes (int)
@@ -57,8 +63,7 @@ class AlphaZeroNano:
         current_network = neural_network
         for _ in range(num_epochs):
             train_episodes = self.self_play(
-                model=current_network,
-                num_episodes=num_episodes
+                model=current_network, num_episodes=num_episodes
             )
             # keep a copy of the current network for evaluation
             old_network = copy.deepcopy(current_network)
@@ -67,39 +72,43 @@ class AlphaZeroNano:
             policy_loss, value_loss = self.retrain_nn(
                 neural_network=current_network,
                 train_data=train_episodes,
-                train_batch_size=train_batch_size
+                train_batch_size=train_batch_size,
             )
             state_curr = current_network.state_dict().__str__()
             print(f"curr: {current_network.parameters()}")
             if state_curr == state_old:
                 print("network not updating")
             # note: figure out if the following assignment makes sense
-            current_network = self.evaluate_networks(
-                current_network,
-                old_network,
-                10
+            current_network = self.evaluate_networks(current_network, old_network, 10)
+
+            logging.info(
+                "Epoch: %s/%s value_loss: %s, policy_loss: %s",
+                _,
+                num_epochs,
+                value_loss,
+                policy_loss,
             )
 
-            logging.info("Epoch: %s/%s value_loss: %s, policy_loss: %s", _, num_epochs, value_loss, policy_loss)
-
         return current_network
-    
-    def eval_network(self, network): 
+
+    def eval_network(self, network):
         player_a = network
         return player_a
 
-    def evaluate_networks(self,
-                          curr_network: torch.nn.Module,
-                          network_b: torch.nn.Module,
-                          num_games: int,
-                          threshold=0.5) -> torch.nn.Module:
+    def evaluate_networks(
+        self,
+        curr_network: torch.nn.Module,
+        network_b: torch.nn.Module,
+        num_games: int,
+        threshold=0.5,
+    ) -> torch.nn.Module:
         """
-        Evaluate networks. Makes two networks play a specified 
+        Evaluate networks. Makes two networks play a specified
         number of games against one another and returns the second
         network if it beats the first beyond some threshold %
 
         Args:
-            curr_network (torch.nn.Module) 
+            curr_network (torch.nn.Module)
             network_b (torch.nn.Module)
             num_games (int)
             threshold (float)
@@ -118,22 +127,21 @@ class AlphaZeroNano:
         win_rate = curr_network_wins / num_games
         # if network a wins most games, return network a
         if win_rate > threshold:
-            
+
             return curr_network
 
         # else return network b
         print(f"new network wins with win rate: {1 - win_rate}")
         return network_b
 
-    def retrain_nn(self,
-                   neural_network: torch.nn.Module,
-                   train_data: list,
-                   train_batch_size: int) -> None:
+    def retrain_nn(
+        self, neural_network: torch.nn.Module, train_data: list, train_batch_size: int
+    ) -> None:
         """
-        Neural network trainer function. 
+        Neural network trainer function.
 
         Args:
-            neural_network (torch.nn.Module) 
+            neural_network (torch.nn.Module)
             train_data (list)
             train_batch_size (int)
 
@@ -143,9 +151,7 @@ class AlphaZeroNano:
         policy_loss_fn = torch.nn.CrossEntropyLoss()
         value_loss_fn = torch.nn.MSELoss()
 
-        dataloader = self.batch_episodes(
-            train_data, batch_size=train_batch_size
-        )
+        dataloader = self.batch_episodes(train_data, batch_size=train_batch_size)
         policy_losses_total = 0
         value_losses_total = 0
         for x_train, policy_train, value_train in dataloader:
@@ -153,23 +159,20 @@ class AlphaZeroNano:
 
             policy_loss = policy_loss_fn(policy_train, policy_pred)
             value_loss = value_loss_fn(value_train, value_pred)
-            policy_losses_total+=policy_loss.item()
-            value_losses_total+=value_loss.item()
+            policy_losses_total += policy_loss.item()
+            value_losses_total += value_loss.item()
             combined_loss = policy_loss + value_loss
 
             self.optimizer.zero_grad()
             combined_loss.backward()
             self.optimizer.step()
 
-
         policy_loss_avg = policy_losses_total / len(dataloader)
         value_losses_avg = value_losses_total / len(dataloader)
 
         return policy_loss_avg, value_losses_avg
 
-    def play_game(self,
-                  network_a: torch.nn.Module,
-                  network_b: torch.nn.Module) -> bool:
+    def play_game(self, network_a: torch.nn.Module, network_b: torch.nn.Module) -> bool:
         """
         Makes two network play a game against one another.
         Args:
@@ -179,21 +182,27 @@ class AlphaZeroNano:
             result (bool)
         """
         game_state = self.game.getInitBoard()
-        player = np.random.choice([-1,1])
+        player = np.random.choice([-1, 1])
         print(f"starting player: {player}")
         game_state = self.game.getCanonicalForm(game_state, player)
-        stacked_frames = self.mcts.no_history_model_input(game_state, current_player=player)
+        stacked_frames = self.mcts.no_history_model_input(
+            game_state, current_player=player
+        )
         while not self.game.getGameEnded(board=game_state, player=player):
-           # print(f"stacked frames: \n{stacked_frames}")
-            stacked_tensor = torch.tensor(stacked_frames, dtype = torch.float32).to(self.device).unsqueeze(0)
+            # print(f"stacked frames: \n{stacked_frames}")
+            stacked_tensor = (
+                torch.tensor(stacked_frames, dtype=torch.float32)
+                .to(self.device)
+                .unsqueeze(0)
+            )
             print(f"Player {player}, state: \n{game_state}")
-            #print(f"player: {player}")
+            # print(f"player: {player}")
             if player == 1:
                 policy, _ = network_a(stacked_tensor)
-                #print(f"network_a policy: {policy}")
+                # print(f"network_a policy: {policy}")
             else:
                 policy, _ = network_b(stacked_tensor)
-                #print(f"network_b policy: {policy}")
+                # print(f"network_b policy: {policy}")
             valid_moves = self.game.getValidMoves(game_state, player)
             ones_indices = np.where(valid_moves == 1)[0]
             mask = torch.zeros_like(policy.squeeze(), dtype=torch.bool)
@@ -201,17 +210,17 @@ class AlphaZeroNano:
             policy[~mask] = 0
             # print(policy)
             action = torch.argmax(policy, dim=-1)
-            game_state, player = self.game.getNextState(
-                game_state,
-                player,
-                action
-            )
+            game_state, player = self.game.getNextState(game_state, player, action)
             game_state = self.game.getCanonicalForm(game_state, player)
-            #print(f"Player after move {player}, state: \n{game_state}")
-            stacked_frames = self.mcts.no_history_model_input(game_state, current_player=player)
+            # print(f"Player after move {player}, state: \n{game_state}")
+            stacked_frames = self.mcts.no_history_model_input(
+                game_state, current_player=player
+            )
 
         if player == -1:
-            print(f"player: {player}, result: {self.game.getGameEnded(game_state, player)}")
+            print(
+                f"player: {player}, result: {self.game.getGameEnded(game_state, player)}"
+            )
             return -self.game.getGameEnded(board=game_state, player=player)
         print(f"player: {player}, result: {self.game.getGameEnded(game_state, player)}")
         return self.game.getGameEnded(board=game_state, player=player)
@@ -219,7 +228,7 @@ class AlphaZeroNano:
     def self_play(self, model: torch.nn.Module, num_episodes: int):
         """
         Self play. Simulates number of episodes using MCTS and a given
-        neural network. 
+        neural network.
 
         Args:
             model (torch.nn.Module)
@@ -241,7 +250,7 @@ class AlphaZeroNano:
                     model=model,
                     num_iterations=self.num_simulations,
                     c=self.c_parameter,
-                    device=self.device
+                    device=self.device,
                 )
                 game_states.append((game_state, pi, player))
                 valid_moves = self.game.getValidMoves(game_state, player)
@@ -249,18 +258,17 @@ class AlphaZeroNano:
                 sum_pi = float(sum(pi))
                 pi = pi / sum_pi
                 action = np.random.choice(len(pi), p=pi)
-                game_state, player = self.game.getNextState(
-                    game_state,
-                    player,
-                    action)
+                game_state, player = self.game.getNextState(game_state, player, action)
                 game_state = self.game.getCanonicalForm(game_state, player=player)
 
             game_result = self.game.getGameEnded(board=game_state, player=player)
             last_player = player
-            #print(f"last_player: {last_player}")
+            # print(f"last_player: {last_player}")
             for state, pi, player in game_states:
-                stacked_frames = self.mcts.no_history_model_input(state, current_player=player)
-                #print(f"player: {player}, last_player = {last_player}")
+                stacked_frames = self.mcts.no_history_model_input(
+                    state, current_player=player
+                )
+                # print(f"player: {player}, last_player = {last_player}")
                 if player != last_player:
                     train_episodes.append((stacked_frames, pi, -game_result))
                 train_episodes.append((stacked_frames, pi, game_result))
@@ -278,7 +286,7 @@ class AlphaZeroNano:
 
         Returns:
             dataloader (TensorDataset)
-        
+
         Note for future optimization (once debugged):
         UserWarning:
         Creating a tensor from a list of numpy.ndarrays is extremely slow.
@@ -286,9 +294,15 @@ class AlphaZeroNano:
         before converting to a tensor.
         """
         states, policies, results = zip(*train_data)
-        states_tensor = torch.tensor(np.array(states), dtype=torch.float32).to(self.device)
-        policies_tensor = torch.tensor(np.array(policies), dtype=torch.float32).to(self.device)
-        results_tensor = torch.tensor(np.array(results), dtype=torch.float32).to(self.device)
+        states_tensor = torch.tensor(np.array(states), dtype=torch.float32).to(
+            self.device
+        )
+        policies_tensor = torch.tensor(np.array(policies), dtype=torch.float32).to(
+            self.device
+        )
+        results_tensor = torch.tensor(np.array(results), dtype=torch.float32).to(
+            self.device
+        )
 
         dataset = TensorDataset(states_tensor, policies_tensor, results_tensor)
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)

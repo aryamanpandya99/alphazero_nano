@@ -14,6 +14,8 @@ Date: Jan 5, 2018.
 Based on the board for the game of Othello by Eric P. Nichols.
 
 """
+
+
 # from bkcharts.attributes import color
 class Board:
 
@@ -45,7 +47,7 @@ class Board:
     def get_legal_moves(self, color):
         """Returns all the legal moves for the given color.
         (1 for white, -1 for black)
-        @param color not used and came from previous version.        
+        @param color not used and came from previous version.
         """
         moves = set()  # stores the legal moves.
 
@@ -65,7 +67,7 @@ class Board:
         return False
 
     def is_win(self, color):
-        """Check whether the given player has collected a triplet in any direction; 
+        """Check whether the given player has collected a triplet in any direction;
         @param color (1=white,-1=black)
         """
         win = self.n
@@ -102,7 +104,7 @@ class Board:
         return False
 
     def execute_move(self, move, color):
-        """Perform the given move on the board; 
+        """Perform the given move on the board;
         color gives the color pf the piece to play (1=white,-1=black)
         """
 
