@@ -11,6 +11,9 @@ import torch
 
 
 class MCTS:
+    """
+    Class for Monte Carlo Tree Search.
+    """
     def __init__(self, game) -> None:
         self.game = game
         self.total_value_s_a = {}
@@ -19,25 +22,98 @@ class MCTS:
         self.num_visits_s_a = {}
         self.num_visits_s = {}
         self.is_terminal_s = {}
-
-    def uct(self, s, c: float) -> list:
+    
+    @torch.no_grad()
+    def apv_mcts(
+            self,
+            canonical_root_state,
+            model: torch.nn.Module,
+            num_iterations: int,
+            device,
+            uct_c: float,
+            temp = 1):
         """
-        ENTER Docstring
+        Implementation of the APV-MCTS variant used in the AlphaZero algorithm.
+
+        This algorithm differs from traditional MCTS in that the simulation from
+        leaf node to terminal state is replaced by evaluation by a neural network.
+        This way, instead of having to play out different scenarios and
+        backpropagate received reward, we can just estimate it using a nn and
+        backpropagate that estimated value.
         """
-        # Create an array for num_visits_s_a values
-        num_visits_s_a_array = np.array(
-            [self.num_visits_s_a[s][a] for a in range(self.game.getActionSize())]
-        )
+        input_array = np.zeros((3, 8, 8))
+        for _ in range(num_iterations):
+            state = canonical_root_state
+            player = 1
+            state_string = self.game.stringRepresentation(state)
+            path = []
+            
+            state, state_string = self._find_leaf_or_terminal(state, player, path, uct_c, state_string)
+            
+            input_tensor = torch.tensor(input_array, dtype=torch.float32).to(device).unsqueeze(0)
+            game_ended = self.game.getGameEnded(state, player=player)
+            
+            if not game_ended:
+                _, value = self._expand_leaf(state, player, state_string, model, input_tensor)
+            
+            else:
+                value = game_ended
 
-        # U (s, a) = C(s)P (s, a) N (s)/(1 + N (s, a))
-        # need to make sure that this will work as an array
-        uct_values = (
-            c
-            * self.prior_probability[s]
-            * (np.sqrt(self.num_visits_s[s]) / (1 + num_visits_s_a_array))
-        )
+            value = self._backpropagate(path, value)
 
-        return uct_values
+        root = path[0][1]
+        visits = [x ** (1 / temp) for x in self.num_visits_s_a[root]]
+        q_vals = [x ** (1 / temp) for x in self.q_s_a[root]]
+        sum_visits = float(sum(visits))
+        pi = [x / sum_visits for x in visits]
+        
+        return self.uct(root, uct_c)
+    
+    def _find_leaf_or_terminal(self, state, player, path, uct_c, state_string):
+        """
+        This function finds the leaf node or terminal node from the current state
+        by traversing the tree. 
+
+        Args: 
+            state: the current state of the game
+            player: the current player
+            path: the path taken to reach the current state
+            uct_c: the uct constant
+            state_string: the string representation of the current state
+
+        Returns: 
+            state: the state of the game at the end of the traversal
+            state_string: the string representation of the current state
+        """
+        while (state_string in self.prior_probability) and not self.game.getGameEnded(state, player=player):
+            possible_actions = self.game.getValidMoves(state, player=player)
+            if len(possible_actions) > 0:
+                action = self.select_action(
+                    valid_moves=possible_actions, c=uct_c, state_string=state_string
+                )
+                next_state, player = self.game.getNextState(
+                    board=state,
+                    player=player,
+                    action=action)
+
+            else:
+                logging.info(
+                    "Terminal state: no possible actions from %s", (state)
+                )
+                input_array = self.no_history_model_input(board_arr=state,
+                                                current_player=player)
+                path.append((input_array, state_string, action))
+                break
+            
+            input_array = self.no_history_model_input(board_arr=state,
+                                                current_player=player)
+            path.append((input_array, state_string, action))
+            #print(f'Player: {-player}, state: \n{state}, action: {action}, next_state:\n{next_state}')
+            next_state = self.game.getCanonicalForm(next_state, player=player)
+            state = next_state
+            state_string = self.game.stringRepresentation(state)
+        
+        return state, state_string
 
     def select_action(self, state_string, c, valid_moves: np.ndarray) -> int:
         """
@@ -58,14 +134,93 @@ class MCTS:
         else:
             unexplored_actions = possible_actions
 
-        # If more than one unvisited child, sample one to visit randomly
         if len(unexplored_actions) > 0:
             return random.choice(unexplored_actions)
 
-        # Otherwise, choose child with the highest uct value
         action_uct = self.uct(state_string, c=c)
 
         return np.argmax(action_uct)
+
+    def uct(self, s, c: float) -> list:
+        """
+        Calculates the Upper Confidence bound for Trees (uct) value for a given state and action.
+
+        Args:
+            s (str): The state string.
+            c (float): The exploration constant.
+
+        Returns:
+            list: The UCT values for all actions.
+        """
+        # Create an array for num_visits_s_a values
+        num_visits_s_a_array = np.array(
+            [self.num_visits_s_a[s][a] for a in range(self.game.getActionSize())]
+        )
+        # U (s, a) = C(s)P (s, a) N (s)/(1 + N (s, a))
+        # need to make sure that this will work as an array
+        uct_values = (
+            c
+            * self.prior_probability[s]
+            * (np.sqrt(self.num_visits_s[s]) / (1 + num_visits_s_a_array))
+        )
+
+        return uct_values
+    
+    def _expand_leaf(self, state, player, state_string, model, input_tensor):
+        """
+        This function expands the leaf node by adding possible children
+        from that self.game state to node.children
+
+        Args: 
+            state: the current state of the game
+            player: the current player
+            state_string: the string representation of the current state
+            model: the neural network model
+            input_tensor: the input tensor to the neural network
+        """
+        model.eval()
+        policy, value  = model(input_tensor)
+        policy = policy.cpu().detach().numpy()
+        
+        possible_actions = self.game.getValidMoves(state, player=player)
+        policy *= possible_actions
+        
+        self.prior_probability[state_string] = policy
+        if np.sum(self.prior_probability[state_string]) > 0:
+            self.prior_probability[state_string] /= np.sum(self.prior_probability[state_string])
+        else:
+            self.prior_probability[state_string] = self.prior_probability[state_string] + possible_actions
+            self.prior_probability[state_string] /= np.sum(self.prior_probability[state_string])
+        
+        return policy, value
+
+    def _backpropagate(self, path, value):
+        """
+        This function backpropagates the value received from the neural network
+        to the parent nodes.
+
+        Args: 
+            path: the path taken to reach the current state
+            value: the value received from the neural network
+        """
+        for _, state_string, action in reversed(path):
+            if state_string in self.num_visits_s:
+                self.num_visits_s[state_string] += 1
+            else:
+                self.num_visits_s[state_string] = 1
+                self.num_visits_s_a[state_string] = [0]*self.game.getActionSize()
+                self.total_value_s_a[state_string] = [0]*self.game.getActionSize()
+                self.q_s_a[state_string] = [0]*self.game.getActionSize()
+
+            self.num_visits_s_a[state_string][action] += 1
+            self.total_value_s_a[state_string][action] += value
+            self.q_s_a[state_string][action] = (
+                    self.total_value_s_a[state_string][action] / self.num_visits_s_a[state_string][action]
+            )
+
+            value = -value  # reverse value we alternates between players
+        
+        return value
 
     def split_player_boards(self, board: np.ndarray) -> tuple[np.ndarray, np.ndarray]: 
         """
@@ -139,107 +294,3 @@ class MCTS:
         model_input_board = np.concatenate((stacked_board, player_board[np.newaxis,...]), axis = 0)
         return model_input_board
 
-    @torch.no_grad()
-    def apv_mcts(
-            self,
-            canonical_root_state,
-            model: torch.nn.Module(),
-            num_iterations: int,
-            device,
-            c: float,
-            temp = 1):
-        """
-        Implementation of the APV-MCTS variant used in the AlphaZero algorithm.
-
-        This algorithm differs from traditional MCTS in that the simulation from
-        leaf node to terminal state is replaced by evaluation by a neural network.
-        This way, instead of having to play out different scenarios and
-        backpropagate received reward, we can just estimate it using a nn and
-        backpropagate that estimated value.
-
-        """
-        
-        input_array = np.zeros((3, 8, 8))
-        for _ in range(num_iterations):
-            # The purpose of this loop is to get us from our current node to a
-            # terminal node or a leaf node so that we can either end the game
-            # or continue to expand
-            state = canonical_root_state
-            player = 1
-            state_string = self.game.stringRepresentation(state)
-            path = []
-            count = 0
-            while (state_string in self.prior_probability) and not self.game.getGameEnded(state, player=player):
-                count+=1
-                possible_actions = self.game.getValidMoves(state, player=player)
-                if len(possible_actions) > 0:
-                    action = self.select_action(
-                        valid_moves=possible_actions, c=c, state_string=state_string
-                    )
-                    next_state, player = self.game.getNextState(
-                        board=state,
-                        player=player,
-                        action=action)
-                    
-
-                else:
-                    logging.info(
-                        "Terminal state: no possible actions from %s", (state)
-                    )
-                    input_array = self.no_history_model_input(board_arr=state,
-                                                    current_player=player)
-                    path.append((input_array, state_string, action))
-                    break
-                input_array = self.no_history_model_input(board_arr=state,
-                                                    current_player=player)
-                path.append((input_array, state_string, action))
-                #print(f'Player: {-player}, state: \n{state}, action: {action}, next_state:\n{next_state}')
-                next_state = self.game.getCanonicalForm(next_state, player=player)
-                state = next_state
-                state_string = self.game.stringRepresentation(state)
-            # expansion phase
-            # for our leaf node, expand by adding possible children
-            # from that self.game state to node.children
-            input_tensor = torch.tensor(input_array, dtype=torch.float32).to(device).unsqueeze(0)
-            game_ended = self.game.getGameEnded(state, player=player)
-            if not game_ended :
-                model.eval()
-                policy, value  = model(input_tensor)
-                policy = policy.cpu().detach().numpy()
-                possible_actions = self.game.getValidMoves(state, player=player)
-                policy *= possible_actions
-                self.prior_probability[state_string] = policy
-                if np.sum(self.prior_probability[state_string]) > 0:
-                    self.prior_probability[state_string] /= np.sum(self.prior_probability[state_string])
-                else:
-                    self.prior_probability[state_string] = self.prior_probability[state_string] + possible_actions
-                    self.prior_probability[state_string] /= np.sum(self.prior_probability[state_string])
-            
-            else:
-                value = game_ended
-
-            #print(f"value: {value}")
-            # backpropagation phase
-            for _, state_string, action in reversed(path):
-                if state_string in self.num_visits_s:
-                    self.num_visits_s[state_string] += 1
-                else:
-                    self.num_visits_s[state_string] = 1
-                    self.num_visits_s_a[state_string] = [0]*self.game.getActionSize()
-                    self.total_value_s_a[state_string] = [0]*self.game.getActionSize()
-                    self.q_s_a[state_string] = [0]*self.game.getActionSize()
-
-                self.num_visits_s_a[state_string][action] += 1
-                self.total_value_s_a[state_string][action] += value
-                self.q_s_a[state_string][action] = (
-                        self.total_value_s_a[state_string][action] / self.num_visits_s_a[state_string][action]
-                )
-
-                value = -value  # reverse value we alternates between players
-
-        root = path[0][1]
-        visits = [x ** (1 / temp) for x in self.num_visits_s_a[root]]
-        q_vals = [x ** (1 / temp) for x in self.q_s_a[root]]
-        sum_visits = float(sum(visits))
-        pi = [x / sum_visits for x in visits]
-        return self.uct(root, c)
