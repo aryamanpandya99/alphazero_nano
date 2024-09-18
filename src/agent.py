@@ -249,16 +249,24 @@ class AlphaZeroAgent:
                 )
                 game_states.append((game_state, pi, player))
                 valid_moves = self.game.getValidMoves(game_state, player)
-                pi *= valid_moves
-                sum_pi = float(sum(pi))
-                pi = pi / sum_pi
+                sum_pi = np.sum(pi)
+                
+                if sum_pi > 1e-8:  # Check if sum is greater than a small threshold
+                    pi = pi / sum_pi
+                else:
+                    logging.info("uniform distribution")
+                    # If sum is too small, use uniform distribution over valid moves
+                    pi = valid_moves.astype(float) / np.sum(valid_moves)
+                
                 action = np.random.choice(len(pi), p=pi)
                 game_state, player = self.game.getNextState(game_state, player, action)
                 game_state = self.game.getCanonicalForm(game_state, player=player)
+                print("game_state: \n", game_state)
 
             game_result = self.game.getGameEnded(board=game_state, player=player)
             last_player = player
             # print(f"last_player: {last_player}")
+            
             for state, pi, player in game_states:
                 stacked_frames = self.mcts.no_history_model_input(
                     state, current_player=player
