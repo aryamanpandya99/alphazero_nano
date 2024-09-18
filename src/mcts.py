@@ -45,15 +45,17 @@ class MCTS:
         backpropagate that estimated value.
         """
         input_array = np.zeros((3, 8, 8))
+        depths = []
         for _ in range(num_iterations):
             state = canonical_root_state
             player = 1
             state_string = self.game.stringRepresentation(state)
             path = []
 
-            state, state_string = self._find_leaf_or_terminal(
+            state, state_string, depth = self._find_leaf_or_terminal(
                 state, player, path, uct_c, state_string
             )
+            depths.append(depth)
 
             input_tensor = (
                 torch.tensor(input_array, dtype=torch.float32).to(device).unsqueeze(0)
@@ -69,6 +71,9 @@ class MCTS:
                 value = game_ended
 
             value = self._backpropagate(path, value)
+
+        avg_depth = np.mean(depths)
+        logging.info(f"Average MCTS depth: {avg_depth:.2f}")
 
         root = path[0][1]
         visits = [x ** (1 / temp) for x in self.num_visits_s_a[root]]
@@ -93,7 +98,9 @@ class MCTS:
         Returns:
             state: the state of the game at the end of the traversal
             state_string: the string representation of the current state
+            depth: the depth of the traversal
         """
+        depth = 0
         while (state_string in self.prior_probability) and not self.game.getGameEnded(
             state, player=player
         ):
@@ -122,8 +129,9 @@ class MCTS:
             next_state = self.game.getCanonicalForm(next_state, player=player)
             state = next_state
             state_string = self.game.stringRepresentation(state)
+            depth += 1
 
-        return state, state_string
+        return state, state_string, depth
 
     def select_action(self, state_string, c, valid_moves: np.ndarray) -> int:
         """

@@ -64,6 +64,7 @@ class AlphaZeroAgent:
             train_episodes = self.self_play(
                 model=current_network, num_episodes=num_episodes
             )
+            print(f"SELF PLAY {_}")
             # keep a copy of the current network for evaluation
             old_network = copy.deepcopy(current_network)
             state_old = str(current_network.state_dict())
@@ -120,9 +121,9 @@ class AlphaZeroAgent:
                 curr_network_wins += 1
 
         win_rate = curr_network_wins / num_games
-        # if network a wins most games, return network a
-        if win_rate > threshold:
+        logging.info(f"Current network win rate: {win_rate:.2f}")
 
+        if win_rate > threshold:
             return curr_network
 
         # else return network b
@@ -149,11 +150,12 @@ class AlphaZeroAgent:
         dataloader = self.batch_episodes(train_data, batch_size=train_batch_size)
         policy_losses_total = 0
         value_losses_total = 0
+        
         for x_train, policy_train, value_train in dataloader:
             policy_pred, value_pred = neural_network(x_train)
-
-            policy_loss = policy_loss_fn(policy_train, policy_pred)
-            value_loss = value_loss_fn(value_train, value_pred)
+            policy_loss = policy_loss_fn(policy_pred, policy_train)
+            value_loss = value_loss_fn(value_pred, value_train)
+            
             policy_losses_total += policy_loss.item()
             value_losses_total += value_loss.item()
             combined_loss = policy_loss + value_loss
@@ -191,23 +193,22 @@ class AlphaZeroAgent:
                 .unsqueeze(0)
             )
             print(f"Player {player}, state: \n{game_state}")
-            # print(f"player: {player}")
             if player == 1:
                 policy, _ = network_a(stacked_tensor)
-                # print(f"network_a policy: {policy}")
+
             else:
                 policy, _ = network_b(stacked_tensor)
-                # print(f"network_b policy: {policy}")
+            
             valid_moves = self.game.getValidMoves(game_state, player)
             ones_indices = np.where(valid_moves == 1)[0]
             mask = torch.zeros_like(policy.squeeze(), dtype=torch.bool)
             mask[torch.tensor(ones_indices)] = True
+            
             policy[~mask] = 0
-            # print(policy)
             action = torch.argmax(policy, dim=-1)
+            
             game_state, player = self.game.getNextState(game_state, player, action)
             game_state = self.game.getCanonicalForm(game_state, player)
-            # print(f"Player after move {player}, state: \n{game_state}")
             stacked_frames = self.mcts.no_history_model_input(
                 game_state, current_player=player
             )
@@ -233,6 +234,7 @@ class AlphaZeroAgent:
             episodes (list)
         """
         train_episodes = []
+
         for _ in range(num_episodes):
             self.mcts = MCTS(self.game)
             game_states = []
@@ -251,27 +253,22 @@ class AlphaZeroAgent:
                 valid_moves = self.game.getValidMoves(game_state, player)
                 sum_pi = np.sum(pi)
                 
-                if sum_pi > 1e-8:  # Check if sum is greater than a small threshold
+                if sum_pi > 1e-8: 
                     pi = pi / sum_pi
                 else:
-                    logging.info("uniform distribution")
-                    # If sum is too small, use uniform distribution over valid moves
                     pi = valid_moves.astype(float) / np.sum(valid_moves)
                 
                 action = np.random.choice(len(pi), p=pi)
                 game_state, player = self.game.getNextState(game_state, player, action)
                 game_state = self.game.getCanonicalForm(game_state, player=player)
-                print("game_state: \n", game_state)
 
             game_result = self.game.getGameEnded(board=game_state, player=player)
             last_player = player
-            # print(f"last_player: {last_player}")
             
             for state, pi, player in game_states:
                 stacked_frames = self.mcts.no_history_model_input(
                     state, current_player=player
                 )
-                # print(f"player: {player}, last_player = {last_player}")
                 if player != last_player:
                     train_episodes.append((stacked_frames, pi, -game_result))
                 train_episodes.append((stacked_frames, pi, game_result))
