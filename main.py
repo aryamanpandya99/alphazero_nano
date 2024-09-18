@@ -10,9 +10,9 @@ import sys
 
 import torch
 
-from agent import AlphaZeroNano
-from mcts import MCTS
-from models import OthelloNN
+from src.agent import AlphaZeroAgent
+from src.mcts import MCTS
+from src.models import OthelloNN
 
 sys.path.append("Othello")
 from othello_game import OthelloGame
@@ -37,7 +37,7 @@ def main():
     actor_optimizer = torch.optim.Adam(
         neural_network.parameters(), lr=learning_rate, weight_decay=l2_reg
     )
-    agent = AlphaZeroNano(
+    agent = AlphaZeroAgent(
         optimizer=actor_optimizer,
         num_simulations=25,
         game=game,

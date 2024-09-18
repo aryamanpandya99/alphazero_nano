@@ -12,11 +12,10 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
-from Game import Game
-from mcts import MCTS
+from src.mcts import MCTS
 
 
-class AlphaZeroNano:
+class AlphaZeroAgent:
     """
     Class implementation of AlphaZero agent.
     """
@@ -25,7 +24,7 @@ class AlphaZeroNano:
         self,
         num_simulations: int,
         optimizer,
-        game: Game,
+        game,
         c_uct: float,
         mcts: MCTS,
         device,
@@ -67,14 +66,14 @@ class AlphaZeroNano:
             )
             # keep a copy of the current network for evaluation
             old_network = copy.deepcopy(current_network)
-            state_old = current_network.state_dict().__str__()
+            state_old = str(current_network.state_dict())
             print(f"old network params: {old_network.parameters()}")
             policy_loss, value_loss = self.retrain_nn(
                 neural_network=current_network,
                 train_data=train_episodes,
                 train_batch_size=train_batch_size,
             )
-            state_curr = current_network.state_dict().__str__()
+            state_curr = str(current_network.state_dict())
             print(f"curr: {current_network.parameters()}")
             if state_curr == state_old:
                 print("network not updating")
@@ -90,10 +89,6 @@ class AlphaZeroNano:
             )
 
         return current_network
-
-    def eval_network(self, network):
-        player_a = network
-        return player_a
 
     def evaluate_networks(
         self,
@@ -249,7 +244,7 @@ class AlphaZeroNano:
                     canonical_root_state=game_state,
                     model=model,
                     num_iterations=self.num_simulations,
-                    c=self.c_parameter,
+                    uct_c=self.c_parameter,
                     device=self.device,
                 )
                 game_states.append((game_state, pi, player))
