@@ -7,11 +7,11 @@ required to enable training through self play.
 
 import copy
 import logging
-import matplotlib.pyplot as plt
-from IPython.display import clear_output
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from IPython.display import clear_output
 from torch.utils.data import DataLoader, TensorDataset
 
 from src.mcts import MCTS
@@ -39,7 +39,7 @@ class AlphaZeroAgent:
         self.device = device
         self.mcts = mcts
         self.fig, (self.ax1, self.ax2) = plt.subplots(2, 1, figsize=(5, 5))
-        plt.ion()  # Turn on interactive mode
+        plt.ion()
 
     def train(
         self,
@@ -64,7 +64,7 @@ class AlphaZeroAgent:
         """
         logging.info("Beginning agent AlphaZeroNano training")
         current_network = neural_network
-        
+
         policy_losses = []
         value_losses = []
 
@@ -93,7 +93,7 @@ class AlphaZeroAgent:
                 policy_loss,
             )
 
-        plt.ioff()  # Turn off interactive mode
+        plt.ioff()
         plt.show()
 
         return current_network
@@ -109,16 +109,16 @@ class AlphaZeroAgent:
         self.ax1.clear()
         self.ax2.clear()
 
-        self.ax1.plot(policy_losses, label='Policy Loss')
-        self.ax1.set_title('Policy Loss over Epochs')
-        self.ax1.set_xlabel('Epoch')
-        self.ax1.set_ylabel('Loss')
+        self.ax1.plot(policy_losses, label="Policy Loss")
+        self.ax1.set_title("Policy Loss over Epochs")
+        self.ax1.set_xlabel("Epoch")
+        self.ax1.set_ylabel("Loss")
         self.ax1.legend()
 
-        self.ax2.plot(value_losses, label='Value Loss')
-        self.ax2.set_title('Value Loss over Epochs')
-        self.ax2.set_xlabel('Epoch')
-        self.ax2.set_ylabel('Loss')
+        self.ax2.plot(value_losses, label="Value Loss")
+        self.ax2.set_title("Value Loss over Epochs")
+        self.ax2.set_xlabel("Epoch")
+        self.ax2.set_ylabel("Loss")
         self.ax2.legend()
 
         self.fig.tight_layout()
@@ -186,12 +186,12 @@ class AlphaZeroAgent:
         dataloader = self.batch_episodes(train_data, batch_size=train_batch_size)
         policy_losses_total = 0
         value_losses_total = 0
-        
+
         for x_train, policy_train, value_train in dataloader:
             policy_pred, value_pred = neural_network(x_train)
             policy_loss = policy_loss_fn(policy_pred, policy_train)
             value_loss = value_loss_fn(value_pred, value_train)
-            
+
             policy_losses_total += policy_loss.item()
             value_losses_total += value_loss.item()
             combined_loss = policy_loss + value_loss
@@ -234,15 +234,15 @@ class AlphaZeroAgent:
 
             else:
                 policy, _ = network_b(stacked_tensor)
-            
+
             valid_moves = self.game.getValidMoves(game_state, player)
             ones_indices = np.where(valid_moves == 1)[0]
             mask = torch.zeros_like(policy.squeeze(), dtype=torch.bool)
             mask[torch.tensor(ones_indices)] = True
-            
+
             policy[~mask] = 0
             action = torch.argmax(policy, dim=-1)
-            
+
             game_state, player = self.game.getNextState(game_state, player, action)
             game_state = self.game.getCanonicalForm(game_state, player)
             stacked_frames = self.mcts.no_history_model_input(
@@ -288,19 +288,19 @@ class AlphaZeroAgent:
                 game_states.append((game_state, pi, player))
                 valid_moves = self.game.getValidMoves(game_state, player)
                 sum_pi = np.sum(pi)
-                
-                if sum_pi > 1e-8: 
+
+                if sum_pi > 1e-8:
                     pi = pi / sum_pi
                 else:
                     pi = valid_moves.astype(float) / np.sum(valid_moves)
-                
+
                 action = np.random.choice(len(pi), p=pi)
                 game_state, player = self.game.getNextState(game_state, player, action)
                 game_state = self.game.getCanonicalForm(game_state, player=player)
 
             game_result = self.game.getGameEnded(board=game_state, player=player)
             last_player = player
-            
+
             for state, pi, player in game_states:
                 stacked_frames = self.mcts.no_history_model_input(
                     state, current_player=player
