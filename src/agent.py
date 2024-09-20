@@ -7,6 +7,8 @@ required to enable training through self play.
 
 import copy
 import logging
+import matplotlib.pyplot as plt
+from IPython.display import clear_output
 
 import numpy as np
 import torch
@@ -36,6 +38,8 @@ class AlphaZeroAgent:
         self.game = game
         self.device = device
         self.mcts = mcts
+        self.fig, (self.ax1, self.ax2) = plt.subplots(2, 1, figsize=(5, 5))
+        plt.ion()  # Turn on interactive mode
 
     def train(
         self,
@@ -60,36 +64,68 @@ class AlphaZeroAgent:
         """
         logging.info("Beginning agent AlphaZeroNano training")
         current_network = neural_network
-        for _ in range(num_epochs):
+        
+        policy_losses = []
+        value_losses = []
+
+        for epoch in range(num_epochs):
             train_episodes = self.self_play(
                 model=current_network, num_episodes=num_episodes
             )
-            print(f"SELF PLAY {_}")
-            # keep a copy of the current network for evaluation
             old_network = copy.deepcopy(current_network)
-            state_old = str(current_network.state_dict())
-            print(f"old network params: {old_network.parameters()}")
             policy_loss, value_loss = self.retrain_nn(
                 neural_network=current_network,
                 train_data=train_episodes,
                 train_batch_size=train_batch_size,
             )
-            state_curr = str(current_network.state_dict())
-            print(f"curr: {current_network.parameters()}")
-            if state_curr == state_old:
-                print("network not updating")
-            # note: figure out if the following assignment makes sense
             current_network = self.evaluate_networks(current_network, old_network, 10)
+
+            policy_losses.append(policy_loss)
+            value_losses.append(value_loss)
+
+            self.plot_losses(policy_losses, value_losses)
 
             logging.info(
                 "Epoch: %s/%s value_loss: %s, policy_loss: %s",
-                _,
+                epoch + 1,
                 num_epochs,
                 value_loss,
                 policy_loss,
             )
 
+        plt.ioff()  # Turn off interactive mode
+        plt.show()
+
         return current_network
+
+    def plot_losses(self, policy_losses, value_losses):
+        """
+        Update the plot with the latest policy and value losses.
+
+        Args:
+            policy_losses (list): List of policy losses
+            value_losses (list): List of value losses
+        """
+        self.ax1.clear()
+        self.ax2.clear()
+
+        self.ax1.plot(policy_losses, label='Policy Loss')
+        self.ax1.set_title('Policy Loss over Epochs')
+        self.ax1.set_xlabel('Epoch')
+        self.ax1.set_ylabel('Loss')
+        self.ax1.legend()
+
+        self.ax2.plot(value_losses, label='Value Loss')
+        self.ax2.set_title('Value Loss over Epochs')
+        self.ax2.set_xlabel('Epoch')
+        self.ax2.set_ylabel('Loss')
+        self.ax2.legend()
+
+        self.fig.tight_layout()
+        plt.draw()
+        plt.pause(0.1)
+        clear_output(wait=True)
+        self.fig.canvas.draw()
 
     def evaluate_networks(
         self,

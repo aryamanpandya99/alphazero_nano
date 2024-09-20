@@ -170,7 +170,6 @@ class MCTS:
         Returns:
             list: The UCT values for all actions.
         """
-        # Create an array for num_visits_s_a values
         num_visits_s_a_array = np.array(
             [self.num_visits_s_a[s][a] for a in range(self.game.getActionSize())]
         )
