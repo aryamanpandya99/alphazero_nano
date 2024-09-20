@@ -49,7 +49,7 @@ def main():
     agent.train(
         train_batch_size=16,
         neural_network=neural_network,
-        num_episodes=100,
+        num_episodes=5,
         num_epochs=100,
     )
 
