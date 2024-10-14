@@ -1,4 +1,4 @@
-# AlphaZeroNano [in progress]
+# AlphaZeroNano
 
 AlphaZeroNano is a miniature implementation of the famous AlphaZero, designed to understand and master grid-based board games. This project offers a lightweight framework for exploring the principles behind deep reinforcement learning combined with Monte Carlo Tree Search (MCTS) in the context of board games.
 
